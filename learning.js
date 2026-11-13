@@ -1078,7 +1078,7 @@ $("forgotPasswordBtn").onclick = async () => {
         email,
         {
           redirectTo:
-            "https://tmcmiprinter-netizen.github.io/miprint/learning.html"
+            "https://miprints.co.za/learning.html"
         }
       );
 
