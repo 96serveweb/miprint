@@ -130,6 +130,26 @@
 <div class="field span-2 consent"><label><input id="regConsent" type="checkbox"> I confirm the information is correct and consent to mi Print using it for training administration.</label></div>
 </div><button class="primary-btn full" id="registerSubmitBtn">Submit Application</button><div class="form-message" id="registerMessage"></div></div></div>
 
+<div class="modal" id="registrationSuccessModal" role="dialog" aria-modal="true" aria-labelledby="registrationSuccessTitle">
+  <div class="modal-card wide registration-success-card">
+    <button class="modal-close" type="button" data-close="registrationSuccessModal" aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    <div class="registration-success-icon"><i class="fa-solid fa-circle-check"></i></div>
+    <span class="modal-kicker">Application Received</span>
+    <h2 id="registrationSuccessTitle">Your Registration has been submitted.</h2>
+    <p>We will send you an invitation email once your application is approved.</p>
+    <h3>Instructions</h3>
+    <ol class="registration-steps">
+      <li>An invitation email is expected within <strong>1–5 working days</strong>, subject to approval. Click the invitation link when you receive it.</li>
+      <li>The invitation link will take you to our learning portal and sign you in.</li>
+      <li>Log out, enter your email on the Student Login page and click <strong>Forgot password / Set password</strong>. Open the password reset email and click its link to create your new password.</li>
+      <li>Return to My Learning and log in using your email and new password.</li>
+    </ol>
+    <p class="registration-note"><strong>Note:</strong> If you see “email rate limit exceeded”, wait 15 minutes before trying the password button again.</p>
+    <p class="registration-office"><strong>Need help with your application?</strong> Visit Tiangmaatla Offices.<br>Monday–Thursday: 08h00–16h00<br>Friday: 08h00–13h00</p>
+    <button type="button" class="primary-btn full" data-close="registrationSuccessModal">Done</button>
+  </div>
+</div>
+
 <section id="studentApp" class="app-shell hidden"><aside class="sidebar"><div class="side-brand"><span>My</span> Learning </div><nav><button class="nav-item active" data-student-view="studentDashboard"><i class="fa-solid fa-house"></i> Dashboard</button><button class="nav-item" data-student-view="studentCourse"><i class="fa-solid fa-book-open"></i> Course</button><button class="nav-item" data-student-view="studentResults"><i class="fa-solid fa-chart-simple"></i> Results</button><button class="nav-item" data-student-view="studentCertificates"><i class="fa-solid fa-award"></i> Certificates</button><button class="nav-item" data-student-view="studentProfile"><i class="fa-solid fa-user"></i> Profile</button></nav><button class="logout-btn" id="studentLogoutBtn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button></aside>
 <div class="app-content"><div class="mobile-app-top"><div class="side-brand"><span>My</span> Learning <small>Training</small></div><button id="studentMenuBtn"><i class="fa-solid fa-bars"></i></button></div>
 <section id="studentDashboard" class="app-view"><div class="view-head"><div><span>Student dashboard</span><h2 id="studentWelcome">Welcome</h2></div><div class="status-chip" id="studentApplicationChip">Approved</div></div><div class="dashboard-cards"><article><i class="fa-solid fa-user-check"></i><span>Application</span><strong id="dashApplication">Approved</strong></article><article><i class="fa-solid fa-list-check"></i><span>Assessment</span><strong id="dashProgress">Not started</strong></article><article><i class="fa-solid fa-percent"></i><span>Best mark</span><strong id="dashMark">—</strong></article><article><i class="fa-solid fa-award"></i><span>Certificates</span><strong id="dashCertificates">0</strong></article></div><div class="dashboard-grid"><article class="panel"><span class="panel-kicker">Current course</span><h3 id="dashCourseTitle"></h3><p id="dashCourseDescription"></p><button class="primary-btn" data-student-jump="studentCourse">Open Course</button></article><article class="panel"><span class="panel-kicker">Latest update</span><div id="studentUpdateFeed" class="update-feed"></div></article></div></section>

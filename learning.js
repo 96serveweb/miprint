@@ -251,28 +251,12 @@ if (
     }
 
     msg.className = "form-message success";
-    msg.textContent =
-      result.message ||
-      "Application submitted successfully. mi Print will review it before activating your student account.";
-
-    $("regFullName").value = "";
-    $("regEmail").value = "";
-    $("regPhone").value = "";
-    $("regNationality").value = "";
-    $("regBirthYear").value = "";
-    $("regIdentity").value = "";
-    $("regAddress").value = "";
-    $("regEducation").value = "";
-    $("regStatus").value = "";
-    $("regDocument").value = "";
+    msg.textContent = "Application submitted successfully.";
+    ["regFullName","regEmail","regPhone","regBirthYear","regIdentity","regAddress","regDocument"].forEach(id => $(id).value = "");
+    $("regCourse").value = "";
     $("regConsent").checked = false;
-
-    setTimeout(() => {
-      closeModal("registerModal");
-
-      msg.className = "form-message";
-      msg.textContent = "";
-    }, 2000);
+    closeModal("registerModal");
+    openModal("registrationSuccessModal");
 
   } catch (error) {
     console.error(
@@ -765,12 +749,12 @@ $("setPasswordBtn").onclick = async () => {
     '<i class="fa-solid fa-spinner fa-spin"></i> Creating password...';
 
   try {
-    const {
-      data,
-      error
-    } = await supabaseClient.auth.updateUser({
-      password
-    });
+    const { data: currentAuth, error: sessionError } =
+      await supabaseClient.auth.getSession();
+    if (sessionError || !currentAuth?.session?.user) {
+      throw new Error("Your password link has expired. Request a new password setup link from Student Login.");
+    }
+    const { data, error } = await supabaseClient.auth.updateUser({ password });
 
     if (error) {
       throw error;
@@ -830,226 +814,51 @@ setTimeout(async () => {
   }
 };
 
-supabaseClient.auth.onAuthStateChange(
-  async (event, authSession) => {
-
-    if (!authSession?.user) {
-      return;
-    }
-
-
-if (event === "PASSWORD_RECOVERY") {
-
-  passwordSetupAllowed = true;
-
-  openModal(
-    "setPasswordModal"
-  );
-
-  return;
-}
-
-    const url =
-      new URL(
-        window.location.href
-      );
-
-    const hashParams =
-      new URLSearchParams(
-        window.location.hash
-          .replace(/^#/, "")
-      );
-
-    const isInvite =
-     
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-      hashParams.get("type") === "invite";
-
-
-    if (isInvite) {
-
-  passwordSetupAllowed = true;
-
-  openModal(
-    "setPasswordModal"
-  );
-
-      url.searchParams.delete(
-        "type"
-      );
-
-      hashParams.delete(
-        "type"
-      );
-
-
-      const cleanHash =
-        hashParams.toString();
-
-
-      window.history.replaceState(
-        {},
-        document.title,
-        url.pathname +
-        url.search +
-        (
-          cleanHash
-            ? `#${cleanHash}`
-            : ""
-        )
-      );
-    }
-
+// A recovery link must establish a Supabase session before updateUser().
+// Keep the auth callback synchronous to avoid deadlocking Supabase auth operations.
+supabaseClient.auth.onAuthStateChange((event, authSession) => {
+  if (event === "PASSWORD_RECOVERY" && authSession?.user) {
+    passwordSetupAllowed = true;
+    showPublic();
+    openModal("setPasswordModal");
   }
-);
+});
+
+async function processPasswordRecoveryLink() {
+  const url = new URL(window.location.href);
+  const hash = new URLSearchParams(url.hash.replace(/^#/, ""));
+  const type = url.searchParams.get("type") || hash.get("type");
+  const tokenHash = url.searchParams.get("token_hash");
+  const code = url.searchParams.get("code");
+  const isRecovery = type === "recovery" ||
+    (code && sessionStorage.getItem("learningPasswordRecoveryPending") === "1");
+
+  if (tokenHash && type === "recovery") {
+    const { error } = await supabaseClient.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+    if (error) throw error;
+  } else if (code && isRecovery) {
+    // Supabase may have already exchanged this one-time code automatically.
+    const { data: existing } = await supabaseClient.auth.getSession();
+    if (!existing?.session) {
+      const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+    }
+  }
+
+  if (isRecovery) {
+    const { data: { session: recoverySession }, error } = await supabaseClient.auth.getSession();
+    if (error || !recoverySession?.user) {
+      throw error || new Error("Password setup link has expired or is invalid. Request a new link.");
+    }
+    passwordSetupAllowed = true;
+    sessionStorage.removeItem("learningPasswordRecoveryPending");
+    window.history.replaceState({}, document.title, url.pathname);
+    showPublic();
+    openModal("setPasswordModal");
+    return true;
+  }
+  return false;
+}
 
 $("forgotPasswordBtn").onclick = async () => {
   const email = $("loginEmail").value.trim();
@@ -1073,12 +882,13 @@ $("forgotPasswordBtn").onclick = async () => {
     '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
 
   try {
+    sessionStorage.setItem("learningPasswordRecoveryPending", "1");
     const { error } =
       await supabaseClient.auth.resetPasswordForEmail(
         email,
         {
           redirectTo:
-            "https://miprints.co.za/learning.html"
+            "https://tmcmiprinter-netizen.github.io/miprint/learning.html?type=recovery"
         }
       );
 
@@ -4304,22 +4114,8 @@ const hashParams =
       .replace(/^#/, "")
   );
 
-const isInvite =
-  url.searchParams.get("setup") === "invite" ||
-  url.searchParams.get("type") === "invite" ||
-  hashParams.get("type") === "invite";
-
-if (isInvite && user) {
-  passwordSetupAllowed = true;
-
-  showPublic();
-
-  openModal(
-    "setPasswordModal"
-  );
-
-  return;
-}
+// Invitation links sign the approved student into the portal.
+// Password creation is handled separately by the password reset email.
 
     if (!user) {
       showPublic();
@@ -4404,7 +4200,18 @@ async function initializeLearningPage() {
 
   try {
 
-    await restoreLearningSession();
+    let recoveryHandled = false;
+    try {
+      recoveryHandled = await processPasswordRecoveryLink();
+    } catch (error) {
+      console.error("Password recovery link failed:", error);
+      showPublic();
+      openModal("loginModal");
+      $("loginMessage").className = "form-message error";
+      $("loginMessage").textContent = error?.message || "Password setup link is invalid. Request another link.";
+      recoveryHandled = true;
+    }
+    if (!recoveryHandled) await restoreLearningSession();
 
   } finally {
 

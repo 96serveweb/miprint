@@ -1292,3 +1292,9 @@ body:has(.learning-hero)::before{display:none}
   letter-spacing: normal;
   padding-top: 10px;
 }
+/* Registration confirmation */
+.registration-success-card{max-height:min(90vh,850px);overflow-y:auto}
+.registration-success-icon{font-size:2.7rem;color:#12934b;margin-bottom:12px}
+.registration-success-card h3{font:800 1.05rem Manrope,sans-serif;margin:20px 0 10px}
+.registration-steps{padding-left:24px;display:grid;gap:12px;color:#43535b;line-height:1.6;font-size:.9rem}
+.registration-success-card .registration-note,.registration-success-card .registration-office{background:#f3f8f7;padding:14px 16px;border-radius:12px;margin:16px 0 0;color:#34444c;line-height:1.65;font-size:.88rem}
