@@ -10,41 +10,22 @@
 <link rel="stylesheet" href="learning.css">
 </head>
 <body>
-    <div
-  id="learningPageLoader"
-  class="learning-loader"
-  role="status"
-  aria-live="polite"
->
-  <div class="learning-loader-card">
-
-    <div class="learning-loader-brand">
-      <span>mi</span> Print
-      <small>Learning</small>
-    </div>
-
-    <p>
-      Connecting to the secure learning database
-      and preparing your session...
-    </p>
-
-    <div class="learning-loader-track">
-      <span></span>
-    </div>
-
-    <div class="learning-loader-status">
-      <i class="fa-solid fa-circle"></i>
-      SECURE CONNECTION
-    </div>
-
+<div id="learningPageLoader" class="learning-loader" role="status" aria-label="Loading learning portal">
+  <div class="learning-loader-content">
+    <img class="learning-loader-letterhead" src="assets/design/letterhead.png" alt="mi Print Computer Lab & Training">
+    <img class="learning-loader-gif" src="assets/images/learning-loader.gif" alt="Loading...">
   </div>
 </div>
-<header class="topbar"><a href="index.html" class="brand"><span>mi</span> Print</a><div class="top-actions"><button id="loginOpenBtn" class="ghost-btn">Login</button><button id="registerOpenBtn" class="primary-btn">Register</button></div></header>
+<header class="topbar portal-header">
+  <div class="portal-utility"><div class="portal-container"><span><i class="fa-solid fa-location-dot"></i> Tiangmaatla Office, South Africa</span><span><a href="tel:0155902376">015 590 2376</a> &nbsp; <a href="mailto:info@miprint.co.za">info@miprint.co.za</a></span></div></div>
+  <div class="portal-header-main portal-container"><a href="index.html" class="brand portal-letterhead" aria-label="mi Print home"><img src="assets/design/letterhead.png" alt="mi Print Computer Lab & Training" onerror="this.style.display='none';this.nextElementSibling.style.display='inline'"/><span class="portal-brand-fallback" style="display:none">mi Print</span></a><div class="portal-header-actions"><span class="portal-tagline">Empowering communities through digital skills</span><div class="top-actions"><button id="loginOpenBtn" class="ghost-btn">Student Login</button><button id="registerOpenBtn" class="primary-btn">Apply for Training</button></div></div></div>
+  <nav class="portal-navigation" aria-label="Main navigation"><div class="portal-container portal-navlinks"><a href="index.html">HOME</a><a href="about.html">ABOUT US</a><a href="index.html#services">OUR SERVICES</a><a href="index.html#training">SKILLS DEVELOPMENT</a><a class="selected" href="learning.html">LEARNER PORTAL</a><a href="index.html#contact">CONTACT US</a></div></nav>
+</header>
 
 <main id="publicLanding">
 <section class="learning-hero">
-<div class="hero-copy"><span class="eyebrow"><i class="fa-solid fa-circle"></i> MI PRINT // LEARNING NODE</span><h1>Learn digital skills.<br><span>Track your progress.</span></h1><p>Apply for training, access approved lessons, complete assessments, view your marks and build a certificate history from one student profile.</p><div class="hero-actions"><button class="primary-btn big" id="heroRegisterBtn">Apply for Training</button><button class="ghost-btn big" id="heroLoginBtn">Student Login</button></div><div class="feature-strip"><div><i class="fa-solid fa-book-open"></i><span>Guided lessons</span></div><div><i class="fa-solid fa-list-check"></i><span>2 assessment attempts</span></div><div><i class="fa-solid fa-award"></i><span>Certificate record</span></div></div></div>
-<div class="hero-panel"><div class="server-status"><span><i class="fa-solid fa-circle"></i> SYSTEM ONLINE</span><span>SECURE LEARNING NODE</span></div><div class="hero-panel-card"><span>Current starter lesson</span><h3>Windows Basics</h3><p>Learn the desktop, taskbar, Start menu, files, folders, windows and basic computer navigation.</p><div class="course-meta"><div><strong>60%</strong><span>Pass mark</span></div><div><strong>2</strong><span>Attempts</span></div><div><strong>100%</strong><span>Final score</span></div></div></div></div>
+<div class="hero-copy"><span class="eyebrow">EDUCATION &amp; TRAINING • MI PRINT COMPUTER LAB</span><h1>Develop your skills.<br><span>Shape your future.</span></h1><p>Apply for training, access approved lessons, complete assessments, view your marks and build a certificate history from one student profile.</p><div class="hero-actions"><button class="primary-btn big" id="heroRegisterBtn">Apply for Training</button><button class="ghost-btn big" id="heroLoginBtn">Student Login</button></div><div class="feature-strip"><div><i class="fa-solid fa-book-open"></i><span>Guided lessons</span></div><div><i class="fa-solid fa-list-check"></i><span>2 assessment attempts</span></div><div><i class="fa-solid fa-award"></i><span>Certificate record</span></div></div></div>
+<div class="hero-panel"><div class="server-status"><span><i class="fa-solid fa-circle"></i> LEARNER PORTAL</span><span>COMPUTER PRACTICE TRAINING</span></div><div class="hero-panel-card"><span>FEATURED TRAINING</span><h3>Windows Basics</h3><p>Learn the desktop, taskbar, Start menu, files, folders, windows and basic computer navigation.</p><div class="course-meta"><div><strong>60%</strong><span>Pass mark</span></div><div><strong>2</strong><span>Attempts</span></div><div><strong>100%</strong><span>Final score</span></div></div></div></div>
 </section>
 <section class="public-process"><div class="section-head"><span>How it works</span><h2>From application to certificate.</h2></div><div class="process-grid"><article><b>01</b><h3>Apply online</h3><p>Submit personal details and certified South African ID or valid passport.</p></article><article><b>02</b><h3>Approval</h3><p>mi Print reviews each application and approves or rejects it based on space and requirements.</p></article><article><b>03</b><h3>Learn & assess</h3><p>Approved students access summaries and complete multiple-choice assessments.</p></article><article><b>04</b><h3>Results</h3><p>Your percentage, result status, progress and certificates remain in your profile.</p></article></div></section>
 </main>
@@ -149,8 +130,8 @@
 <div class="field span-2 consent"><label><input id="regConsent" type="checkbox"> I confirm the information is correct and consent to mi Print using it for training administration.</label></div>
 </div><button class="primary-btn full" id="registerSubmitBtn">Submit Application</button><div class="form-message" id="registerMessage"></div></div></div>
 
-<section id="studentApp" class="app-shell hidden"><aside class="sidebar"><div class="side-brand"><span>mi</span> Print <small>Learning</small></div><nav><button class="nav-item active" data-student-view="studentDashboard"><i class="fa-solid fa-house"></i> Dashboard</button><button class="nav-item" data-student-view="studentCourse"><i class="fa-solid fa-book-open"></i> Course</button><button class="nav-item" data-student-view="studentResults"><i class="fa-solid fa-chart-simple"></i> Results</button><button class="nav-item" data-student-view="studentCertificates"><i class="fa-solid fa-award"></i> Certificates</button><button class="nav-item" data-student-view="studentProfile"><i class="fa-solid fa-user"></i> Profile</button></nav><button class="logout-btn" id="studentLogoutBtn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button></aside>
-<div class="app-content"><div class="mobile-app-top"><div class="side-brand"><span>mi</span> Print <small>Learning</small></div><button id="studentMenuBtn"><i class="fa-solid fa-bars"></i></button></div>
+<section id="studentApp" class="app-shell hidden"><aside class="sidebar"><div class="side-brand"><span>My</span> Learning </div><nav><button class="nav-item active" data-student-view="studentDashboard"><i class="fa-solid fa-house"></i> Dashboard</button><button class="nav-item" data-student-view="studentCourse"><i class="fa-solid fa-book-open"></i> Course</button><button class="nav-item" data-student-view="studentResults"><i class="fa-solid fa-chart-simple"></i> Results</button><button class="nav-item" data-student-view="studentCertificates"><i class="fa-solid fa-award"></i> Certificates</button><button class="nav-item" data-student-view="studentProfile"><i class="fa-solid fa-user"></i> Profile</button></nav><button class="logout-btn" id="studentLogoutBtn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button></aside>
+<div class="app-content"><div class="mobile-app-top"><div class="side-brand"><span>My</span> Learning <small>Training</small></div><button id="studentMenuBtn"><i class="fa-solid fa-bars"></i></button></div>
 <section id="studentDashboard" class="app-view"><div class="view-head"><div><span>Student dashboard</span><h2 id="studentWelcome">Welcome</h2></div><div class="status-chip" id="studentApplicationChip">Approved</div></div><div class="dashboard-cards"><article><i class="fa-solid fa-user-check"></i><span>Application</span><strong id="dashApplication">Approved</strong></article><article><i class="fa-solid fa-list-check"></i><span>Assessment</span><strong id="dashProgress">Not started</strong></article><article><i class="fa-solid fa-percent"></i><span>Best mark</span><strong id="dashMark">—</strong></article><article><i class="fa-solid fa-award"></i><span>Certificates</span><strong id="dashCertificates">0</strong></article></div><div class="dashboard-grid"><article class="panel"><span class="panel-kicker">Current course</span><h3 id="dashCourseTitle"></h3><p id="dashCourseDescription"></p><button class="primary-btn" data-student-jump="studentCourse">Open Course</button></article><article class="panel"><span class="panel-kicker">Latest update</span><div id="studentUpdateFeed" class="update-feed"></div></article></div></section>
 <section id="studentCourse" class="app-view hidden"><div class="view-head"><div><span>Learning</span><h2 id="courseTitleStudent"></h2></div><div class="status-chip sky" id="attemptChip"></div></div>
     <div class="panel">
@@ -188,7 +169,7 @@
 </div></section>
 
 <section id="adminApp" class="app-shell hidden"><aside class="sidebar"><div class="side-brand"><span>mi</span> Print <small>Admin</small></div><nav><button class="nav-item active" data-admin-view="adminDashboard"><i class="fa-solid fa-gauge-high"></i> Overview</button><button class="nav-item" data-admin-view="adminApplications"><i class="fa-solid fa-user-plus"></i> Applications</button><button class="nav-item" data-admin-view="adminStudents"><i class="fa-solid fa-users"></i> Students</button><button class="nav-item" data-admin-view="adminCourse"><i class="fa-solid fa-book"></i> Course Builder</button><button class="nav-item" data-admin-view="adminCertificates"><i class="fa-solid fa-award"></i> Certificates</button></nav><button class="logout-btn" id="adminLogoutBtn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button></aside>
-<div class="app-content"><div class="mobile-app-top"><div class="side-brand"><span>mi</span> Print <small>Admin</small></div><button id="adminMenuBtn"><i class="fa-solid fa-bars"></i></button></div>
+<div class="app-content"><div class="mobile-app-top"><div class="side-brand"><span>My</span> Learning <small>Admin</small></div><button id="adminMenuBtn"><i class="fa-solid fa-bars"></i></button></div>
 <section id="adminDashboard" class="app-view"><div class="view-head"><div><span>Administration</span><h2>Learning Overview</h2></div><div class="status-chip green">Admin</div></div><div class="dashboard-cards"><article><i class="fa-solid fa-inbox"></i><span>Applications</span><strong id="adminPendingCount">0</strong></article><article><i class="fa-solid fa-user-graduate"></i><span>Approved students</span><strong id="adminApprovedCount">0</strong></article><article><i class="fa-solid fa-trophy"></i><span>Top student</span><strong id="adminTopStudent">—</strong></article><article><i class="fa-solid fa-award"></i><span>Certificates</span><strong id="adminCertificateCount">0</strong></article></div><div class="dashboard-grid"><article class="panel"><span class="panel-kicker">Current course</span><h3 id="adminCurrentCourse"></h3><p id="adminCurrentCourseState"></p><button class="primary-btn" data-admin-jump="adminCourse">Manage Course</button></article><article class="panel"><span class="panel-kicker">Course workflow</span><ol class="mini-steps"><li>Create summary & questions</li><li>Promote course & collect applications</li><li>Approve students</li><li>Publish lesson</li><li>Print certificates</li><li>Close course session</li></ol></article></div></section>
 <section id="adminApplications" class="app-view hidden">
 

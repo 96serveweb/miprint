@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Certificate Verification | mi Print</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;color:#17252e;background:#f5f8f9}header{background:white;border-bottom:1px solid #e3e9ed;padding:16px max(22px,calc((100vw - 1050px)/2));display:flex;align-items:center;justify-content:space-between;gap:15px}header img{width:min(240px,50vw);max-height:75px;object-fit:contain;object-position:left}header a{color:#126d41;text-decoration:none;font-weight:700;font-size:14px}main{max-width:620px;margin:75px auto;padding:0 20px}.intro{text-align:center}.eyebrow{color:#15844b;font-size:12px;letter-spacing:2px;font-weight:800;text-transform:uppercase}h1{font-size:clamp(29px,5vw,42px);letter-spacing:-1.5px;margin:12px 0}p{color:#65757d;line-height:1.7}.panel{background:rgba(255, 255, 255, 0);border-radius:20px;padding:30px;margin-top:32px;}label{font-weight:700;font-size:14px;display:block;margin-bottom:10px}input{width:100%;padding:16px;border:1px solid #cdd9de;border-radius:10px;font:inherit;outline-color:#20c66b;text-transform:uppercase}button{margin-top:16px;width:100%;padding:16px;background:#0d96f8;color:#ffffff;border:0;border-radius:10px;font:800 15px Inter,sans-serif;cursor:pointer}button:disabled{opacity:.65;cursor:wait}.result{margin-top:20px;padding:22px;border-radius:14px;border:1px solid #dce6e9}.result[hidden]{display:none}.result.success{background:#f0fbf4;border-color:#bce8cb}.result.missing{background:#fff5f4;border-color:#f0c9c4}.result.error{background:#fff9ec;border-color:#f1dfaf}.result h2{margin:0 0 10px;font-size:19px}.result.success h2{color:#14743e}.result.missing h2{color:#b63831}.details{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px;margin-top:20px}.details div{min-width:0}.details span{display:block;font-size:12px;color:#65757d;margin-bottom:5px}.details strong{overflow-wrap:anywhere;font-size:15px}.wide{grid-column:1/-1}footer{text-align:center;padding:30px;color:#84949b;font-size:12px}@media(max-width:480px){main{margin:45px auto}.panel{padding:21px}.details{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><a href="index.html" aria-label="mi Print home"><img src="assets/design/letterhead.png" alt="mi Print Computer Lab & Training"></a></header>
+<main>
+<div class="intro"><h1>Certificate Verification</h1><p>Check whether a certificate was issued by mi Print. Enter the certificate number exactly as printed on the certificate.</p></div>
+<section class="panel" aria-label="Certificate search"><form id="verifyForm"><label for="certificateNumber">Certificate Number</label><input id="certificateNumber" type="text" placeholder="e.g. MIP-2026-00001" maxlength="80" autocomplete="off" required><button id="verifyButton" type="submit">Verify Certificate</button></form><div id="result" class="result" role="status" aria-live="polite" hidden></div></section>
+</main><footer>© mi Print Computer Lab &amp; Training · Certificate Verification</footer>
+<script>
+const SUPABASE_URL='https://gwkcpbncazaeuiqdxqyn.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3a2NwYm5jYXphZXVpcWR4cXluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2ODgyMzAsImV4cCI6MjEwMzI2NDIzMH0.bA0AwTwXn9TAK3szVxwiC9QQyRde3Dyt0DrSXABFQ1w';
+const form=document.getElementById('verifyForm'),button=document.getElementById('verifyButton'),result=document.getElementById('result');
+function safe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function show(kind,html){result.className='result '+kind;result.innerHTML=html;result.hidden=false;}
+form.addEventListener('submit',async e=>{
+ e.preventDefault();const number=document.getElementById('certificateNumber').value.trim().toUpperCase();if(!number)return;
+ button.disabled=true;button.textContent='Checking...';result.hidden=true;
+ try{
+  const response=await fetch(SUPABASE_URL+'/rest/v1/rpc/verify_learning_certificate',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_KEY,'Authorization':'Bearer '+SUPABASE_ANON_KEY},body:JSON.stringify({p_certificate_number:number})});
+  if(!response.ok)throw Error('Verification service unavailable');
+  const records=await response.json();const record=Array.isArray(records)?records[0]:records;
+  if(!record){show('missing','<h2>Certificate Cannot Be Found</h2><p>No certificate matches the number entered. Please check the number and try again.</p>');return;}
+  const fields=[['Certificate Number',record.certificate_number],['Student Full Names',record.full_name],['Last 4 ID / Passport Characters',record.id_last_four],['Pass Percentage',record.pass_percentage+'%'],['Year Obtained',record.year_obtained]];
+  show('success','<h2>✓ Certificate Verified</h2><p>This certificate is recorded in the mi Print certificate register.</p><div class="details">'+fields.map(([label,value],i)=>'<div class="'+(i===1?'wide':'')+'"><span>'+safe(label)+'</span><strong>'+safe(value)+'</strong></div>').join('')+'</div>');
+ }catch(err){console.error(err);show('error','<h2>Unable to Verify Right Now</h2><p>The verification service is temporarily unavailable. Please try again later.</p>');}
+ finally{button.disabled=false;button.textContent='Verify Certificate';}
+});
+</script>
+</body></html>

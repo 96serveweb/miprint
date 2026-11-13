@@ -4074,8 +4074,8 @@ window.openCertificate = (sid, cid) => {
 
   $("certificatePreview").innerHTML = `
 
-    <div class="certificate-sheet">
-
+    <div class="certificate-sheet certificate-modern">
+      <div class="certificate-pattern" aria-hidden="true"></div>
 
       <!-- SECURITY BACKGROUND -->
       <div
@@ -4090,11 +4090,11 @@ window.openCertificate = (sid, cid) => {
       <header class="certificate-header">
 
         <div class="certificate-brand">
-          <span>mi</span> Print
+          <span>My</span> Learning
         </div>
 
         <div class="certificate-brand-subtitle">
-          LEARNING
+          TRAINING
         </div>
 
         <div class="certificate-number">
@@ -4102,6 +4102,9 @@ window.openCertificate = (sid, cid) => {
           <strong>
             ${esc(certificateNumber)}
           </strong>
+          <p class="verify">
+          Verify here: https://miprints.co.za/verify
+        </p>
         </div>
 
       </header>
@@ -4172,6 +4175,23 @@ window.openCertificate = (sid, cid) => {
       <section class="certificate-authorisation">
 
 
+<div class="certificate-signature-block managing-director">
+
+  <div class="signature-space" style="margin-bottom: 10px;">
+    <img
+      src="assets/images/director.png"
+      alt="Managing Director signature"
+      class="certificate-signature-image"
+    >
+  </div>
+
+  <strong>Managing Director</strong>
+
+  <small>Authorised Signature</small>
+
+</div>
+
+
         <div class="certificate-signature-block">
 
           <div class="signature-space">
@@ -4187,7 +4207,7 @@ window.openCertificate = (sid, cid) => {
           <div class="certificate-sign-line"></div>
 
           <strong>
-            Managing Director
+            Facilitator
           </strong>
 
           <small>
@@ -4232,12 +4252,7 @@ window.openCertificate = (sid, cid) => {
           >
 
           <img
-            src="assets/images/logo-002.png"
-            alt="Organisation logo"
-          >
-
-          <img
-            src="assets/images/logo-003.png"
+            src="assets/images/letterhead.png"
             alt="Organisation logo"
           >
 

@@ -2430,23 +2430,14 @@ document.getElementById(
 ).onclick =
     loadIncomeDashboard;
 
-    // =========================
-// INVOICE PREVIEW BUTTONS
-// =========================
-
-// EDIT
 document.getElementById("editBtn").onclick = function () {
     goStep(3);
 };
 
-
-// PRINT
 document.getElementById("printBtn").onclick = function () {
     window.print();
 };
 
-
-// DOWNLOAD PDF
 document.getElementById("pdfBtn").onclick = async function () {
 
     const button =
