@@ -348,15 +348,17 @@ $("loginSubmitBtn").onclick = async () => {
       return;
     }
 
-    const student = await loadCurrentStudent(
-  data.user.id
-);
+    // Some approved student rows were created before their Auth user ID was linked.
+    // Link only an existing active student with a matching verified email.
+    const { error: linkError } = await supabaseClient.rpc('link_my_existing_learning_student');
+    if (linkError) console.warn('Student account link could not be verified:', linkError.message);
+    const student = await loadCurrentStudent(data.user.id);
 
 if (!student) {
   await supabaseClient.auth.signOut();
 
   throw new Error(
-    "This account is not registered as a student."
+    "No approved student profile is linked to this login email. Ask the administrator to check the student's email and approval status."
   );
 }
 
@@ -3222,7 +3224,7 @@ window.toggleStudent = async id => {
 
 async function loadAdminCourseLibrary() {
   const {data,error}=await supabaseClient.from("learning_courses")
-    .select("id,title,subtitle,description,published,closed,assessment_open,created_at")
+    .select("id,title,subtitle,description,summary,published,closed,assessment_open,created_at")
     .order("created_at",{ascending:false});
   if(error) throw error;
   state.adminCourseLibrary=data||[];
@@ -3248,7 +3250,7 @@ function renderAdminCourseLibrary() {
       ${x.subtitle?`<p>${esc(x.subtitle)}</p>`:''}
       ${x.description?`<p>${esc(x.description)}</p>`:''}
       <details class="course-library-details"><summary>View saved section details (${(x.sections||[]).length})</summary>
-      ${(x.sections||[]).length?(x.sections||[]).map(section=>`<div class="course-library-section"><strong>Section ${section.section_number}: ${esc(section.title)}</strong><p style="white-space:pre-wrap">${esc(section.summary||'No summary saved')}</p></div>`).join(''):'<p>No saved sections found for this course.</p>'}
+      ${(x.sections||[]).length?(x.sections||[]).map(section=>`<div class="course-library-section"><strong>Section ${section.section_number}: ${esc(section.title)}</strong><p style="white-space:pre-wrap">${esc(section.summary||'No summary saved')}</p></div>`).join(''):`<p>No section records found.${x.summary?' Legacy summary exists in course record.':''}</p>`}
       </details><small>${x.published?"Published":"Hidden"} • ${x.closed?"Session closed":"Session open"} • ${x.assessment_open?"Assessment open":"Assessment closed"}</small></div>
     <div class="row-actions">
       <button class="secondary" onclick="editLibraryCourse('${x.id}')">Edit</button>
@@ -4000,10 +4002,9 @@ const hashParams =
       return;
     }
 
-    const student =
-      await loadCurrentStudent(
-        user.id
-      );
+    const { error: linkError } = await supabaseClient.rpc('link_my_existing_learning_student');
+    if (linkError) console.warn('Student account link could not be verified:', linkError.message);
+    const student = await loadCurrentStudent(user.id);
 
 
     if (
