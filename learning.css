@@ -1301,3 +1301,22 @@ body:has(.learning-hero)::before{display:none}
 
 /* Course library */
 .course-library-list{display:grid;gap:12px;margin-top:20px}.course-library-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px;border:1px solid #e1e8eb;border-radius:16px}.course-library-row strong{font-size:1rem}.course-library-row p{margin:6px 0}.course-library-row small{color:#68777e}.builder-current{display:flex;gap:14px;align-items:center;margin:0 0 18px}.builder-current .secondary-btn{border:1px solid #dbe3e6;background:#fff;padding:10px 16px;border-radius:999px;cursor:pointer}@media(max-width:800px){.course-library-row{display:block}.course-library-row .row-actions{margin-top:14px}}
+
+/* Course builder: course-level fields separate from each section's content. */
+.course-builder-layout{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+.course-builder-layout>.panel{min-width:0}
+.course-builder-layout .builder-hint{color:#667680;margin:6px 0 20px;line-height:1.55}
+.course-info-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.course-info-fields .course-description-field{grid-column:1/-1}
+.section-selector-bar{display:flex;align-items:end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+.section-selector-bar .field{flex:1 1 270px;min-width:0}
+.section-selector-bar button{margin-bottom:2px}
+.section-content-panel{border:1px solid #d9e4e8;border-radius:16px;padding:22px;background:#f9fbfc}
+.section-content-heading{margin-bottom:16px}
+.section-content-heading h3{margin:5px 0 0}
+.section-details-fields{display:grid;grid-template-columns:minmax(110px,170px) minmax(0,1fr);gap:16px}
+.section-content-panel .inline-actions{margin:14px 0 0}
+.section-questions-panel{border-top:2px solid #dce6e9;margin-top:26px;padding-top:24px}
+.section-questions-panel .panel-title-row{margin-bottom:18px}
+.section-questions-panel #questionBuilder{display:grid;gap:14px;margin-bottom:18px}
+@media(max-width:650px){.course-info-fields,.section-details-fields{grid-template-columns:1fr}.course-info-fields .course-description-field{grid-column:auto}.section-content-panel{padding:14px}.section-selector-bar{align-items:stretch}}

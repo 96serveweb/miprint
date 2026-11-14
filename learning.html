@@ -265,7 +265,40 @@
   </button>
 
 </div>
-</div><p class="builder-current">Editing: <strong id="editingCourseName">New course</strong> <button id="backToCoursesBtn" type="button" class="secondary-btn">Back to Courses</button></p><div class="builder-grid"><div class="panel"><div class="field"><label>Course title</label><input id="courseTitleInput"></div><div class="field"><label>Subtitle</label><input id="courseSubtitleInput"></div><div class="field"><label>Course description</label><textarea id="courseDescriptionInput" rows="4"></textarea></div><div class="field"><label>Choose section</label><select id="courseSectionSelect"></select></div><div class="field"><label>Section title</label><input id="courseSectionTitleInput" placeholder="e.g. Windows 10 Foundations"></div><div class="field"><label>Section number</label><input id="courseSectionInput" type="number" min="1"></div><div class="field"><label>Section summary</label><textarea id="courseSummaryInput" rows="9"></textarea></div><div class="inline-actions"><button type="button" id="addSectionBtn" class="secondary small">+ Add Section</button><button type="button" id="saveSectionBtn" class="primary-btn small">Save Section</button></div><button id="saveCourseInfoBtn" class="primary-btn full">Save Course Information</button></div><div class="panel"><div class="panel-title-row"><div><span class="panel-kicker">Question Builder</span><h3>Multiple-choice questions</h3></div><button id="addQuestionBtn" class="ghost-btn small">+ Add Question</button></div><div id="questionBuilder"></div><button id="saveQuestionsBtn" class="primary-btn full">Save Questions</button></div></div></section>
+</div><p class="builder-current">Editing: <strong id="editingCourseName">New course</strong> <button id="backToCoursesBtn" type="button" class="secondary-btn">Back to Courses</button></p><div class="course-builder-layout">
+  <div class="panel course-info-panel">
+    <div class="panel-title-row"><div><span class="panel-kicker">Step 1 · Course information</span><h3>Course details</h3></div></div>
+    <p class="builder-hint">These details belong to the whole course, not to an individual section.</p>
+    <div class="course-info-fields">
+      <div class="field"><label for="courseTitleInput">Course title</label><input id="courseTitleInput"></div>
+      <div class="field"><label for="courseSubtitleInput">Subtitle</label><input id="courseSubtitleInput"></div>
+      <div class="field course-description-field"><label for="courseDescriptionInput">Course description</label><textarea id="courseDescriptionInput" rows="4"></textarea></div>
+    </div>
+    <button id="saveCourseInfoBtn" class="primary-btn">Save Course Information</button>
+  </div>
+  <div class="panel section-workspace">
+    <div class="panel-title-row"><div><span class="panel-kicker">Step 2 · Course sections</span><h3>Sections and their questions</h3></div></div>
+    <p class="builder-hint">Select one section to edit its summary and questions together. Questions below always belong to the selected section.</p>
+    <div class="section-selector-bar">
+      <div class="field"><label for="courseSectionSelect">Section you are editing</label><select id="courseSectionSelect"></select></div>
+      <button type="button" id="addSectionBtn" class="secondary small">+ Add Section</button>
+    </div>
+    <div class="section-content-panel">
+      <div class="section-content-heading"><span class="panel-kicker">Selected section</span><h3>Section details</h3></div>
+      <div class="section-details-fields">
+        <div class="field"><label for="courseSectionInput">Section number</label><input id="courseSectionInput" type="number" min="1"></div>
+        <div class="field"><label for="courseSectionTitleInput">Section title</label><input id="courseSectionTitleInput" placeholder="e.g. Windows 10 Foundations"></div>
+      </div>
+      <div class="field"><label for="courseSummaryInput">This section's summary</label><textarea id="courseSummaryInput" rows="9"></textarea></div>
+      <div class="inline-actions"><button type="button" id="saveSectionBtn" class="primary-btn small">Save This Section</button></div>
+      <div class="section-questions-panel">
+        <div class="panel-title-row"><div><span class="panel-kicker">Questions for this section only</span><h3>Questions and answers</h3></div><button id="addQuestionBtn" class="ghost-btn small">+ Add Question</button></div>
+        <div id="questionBuilder"></div>
+        <button id="saveQuestionsBtn" class="primary-btn">Save This Section's Questions</button>
+      </div>
+    </div>
+  </div>
+</div></section>
 <section id="adminMaintenance" class="app-view hidden"><div class="view-head"><div><span>Administration</span><h2>Learning Data Reset</h2></div></div><div class="panel"><h3>Clear testing records</h3><p>This permanently deletes learning courses, questions, answers, applications, student records, enrolments, assessment attempts, certificates and certificate counters. Administrator accounts and unrelated website tables are preserved. Student authentication accounts in Supabase Auth are not deleted.</p><button id="resetLearningDataBtn" type="button" class="danger-btn" style="margin-top:20px">Reset All Learning Data</button></div></section>
 <section id="adminCertificates" class="app-view hidden"><div class="view-head"><div><span>Certificates</span><h2>Certificate Register</h2></div></div><div id="certificateAdminList" class="certificate-list"></div></section>
 </div></section>
