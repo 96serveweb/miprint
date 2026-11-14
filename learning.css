@@ -1298,3 +1298,6 @@ body:has(.learning-hero)::before{display:none}
 .registration-success-card h3{font:800 1.05rem Manrope,sans-serif;margin:20px 0 10px}
 .registration-steps{padding-left:24px;display:grid;gap:12px;color:#43535b;line-height:1.6;font-size:.9rem}
 .registration-success-card .registration-note,.registration-success-card .registration-office{background:#f3f8f7;padding:14px 16px;border-radius:12px;margin:16px 0 0;color:#34444c;line-height:1.65;font-size:.88rem}
+
+/* Multiple sections in Course Builder */
+#courseSectionSelect{width:100%;padding:13px;border:1px solid #dbe3e6;border-radius:13px;background:#fff}#addSectionBtn{border:0;border-radius:999px;padding:10px 16px;font-weight:800}#saveSectionBtn{margin:0}.section-question-heading{margin:10px 0;color:#65757d;font-size:.8rem}
