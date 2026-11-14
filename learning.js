@@ -3226,7 +3226,7 @@ function renderAdminCourseLibrary() {
   </article>`).join(""):'<p>No saved courses yet. Click New Course to begin.</p>';
 }
 window.editLibraryCourse=async id=>{
-  try{state.adminSelectedCourseId=id;await loadAdminCourse(id);renderAdmin();showAdminView("adminCourse");}
+  try{state.adminSelectedCourseId=id;courseSectionDrafts.clear();await loadAdminCourse(id);renderAdmin();showAdminView("adminCourse");}
   catch(e){alert(e.message||"Unable to load this course.");}
 };
 window.setLibraryPublish=async(id,published)=>{
@@ -3244,7 +3244,7 @@ window.repeatLibraryCourse=async id=>{
 $("newCourseBtn").onclick=()=>{
   state.adminSelectedCourseId=null;
   state.course={id:null,title:"",subtitle:"",description:"",section:1,summary:"",published:false,assessmentOpen:false,questions:[]};
-  state.courseClosed=false;adminSections=[];activeSectionId=null;renderAdmin();showAdminView("adminCourse");
+  state.courseClosed=false;adminSections=[];activeSectionId=null;courseSectionDrafts.clear();renderAdmin();showAdminView("adminCourse");
 };
 $("backToCoursesBtn").onclick=async()=>{await loadAdminCourseLibrary();renderAdminCourseLibrary();showAdminView("adminCourses");};
 // Section records are stored independently; the course-level assessment remains unchanged.
@@ -3266,56 +3266,48 @@ function readQuestionDraftFromInputs(){
   $$('[data-a]').forEach(e=>{const [q,a]=e.dataset.a.split(':').map(Number);if(adminQuestionDraft[q]?.answers[a])adminQuestionDraft[q].answers[a].text=e.value.trim()});
   $$('[data-c]').forEach(e=>{const [q,a]=e.dataset.c.split(':').map(Number);if(adminQuestionDraft[q]?.answers[a])adminQuestionDraft[q].answers[a].correct=e.checked});
 }
+// Keep unsaved edits for every section until the single Save Course action.
+let courseSectionDrafts = new Map();
+function sectionDraftKey(id){return id || '__new__';}
+function snapshotSelectedSection(){
+  if(!$('courseSectionTitleInput'))return;
+  readQuestionDraftFromInputs();
+  courseSectionDrafts.set(sectionDraftKey(activeSectionId),{
+    id:activeSectionId,
+    title:$('courseSectionTitleInput').value.trim(),
+    summary:$('courseSummaryInput').value.trim(),
+    section_number:Number($('courseSectionInput').value),
+    questions:JSON.parse(JSON.stringify(adminQuestionDraft))
+  });
+}
 function showSelectedSection(){
   const selected=adminSections.find(s=>s.id===activeSectionId);
-  $('courseSectionSelect').innerHTML=adminSections.map(s=>`<option value="${s.id}" ${s.id===activeSectionId?'selected':''}>Section ${s.section_number}: ${esc(s.title)}</option>`).join('');
-  $('courseSectionTitleInput').value=selected?.title||'';
-  $('courseSectionInput').value=selected?.section_number||1;
-  $('courseSummaryInput').value=selected?.summary||'';
-  adminQuestionDraft=JSON.parse(JSON.stringify((state.course.questions||[]).filter(q=>q.sectionId===activeSectionId)));
+  const draft=courseSectionDrafts.get(sectionDraftKey(activeSectionId));
+  $('courseSectionSelect').innerHTML=adminSections.map(s=>`<option value="${s.id}" ${s.id===activeSectionId?'selected':''}>Section ${s.section_number}: ${esc(s.title)}</option>`).join('')+
+    (courseSectionDrafts.has('__new__')?'<option value="__new__">New section (unsaved)</option>':'');
+  if(!activeSectionId&&courseSectionDrafts.has('__new__'))$('courseSectionSelect').value='__new__';
+  $('courseSectionTitleInput').value=draft?.title??selected?.title??'';
+  $('courseSectionInput').value=draft?.section_number??selected?.section_number??Math.max(1,...adminSections.map(s=>s.section_number+1));
+  $('courseSummaryInput').value=draft?.summary??selected?.summary??'';
+  adminQuestionDraft=JSON.parse(JSON.stringify(draft?.questions??(state.course.questions||[]).filter(q=>q.sectionId===activeSectionId)));
   renderQuestionBuilder();
 }
-$('courseSectionSelect').onchange=e=>{readQuestionDraftFromInputs();if(!confirm('Switch section? Unsaved question changes will be lost.')){e.target.value=activeSectionId||'';return;}activeSectionId=e.target.value;showSelectedSection()};
-$('addSectionBtn').onclick=()=>{
-  if(!state.course?.id){alert('Save course information first.');return}
-  activeSectionId=null;
-  $('courseSectionSelect').value='';
-  $('courseSectionTitleInput').value='';
-  $('courseSectionInput').value=Math.max(0,...adminSections.map(s=>s.section_number))+1;
-  $('courseSummaryInput').value='';
-  adminQuestionDraft=[];renderQuestionBuilder();
-  // The new section is saved together with its questions using the single button below.
+$('courseSectionSelect').onchange=e=>{
+  const target=e.target.value;
+  snapshotSelectedSection();
+  activeSectionId=target==='__new__'?null:target;
+  showSelectedSection();
 };
-$('saveSectionBtn').onclick=async()=>{
-  if(!state.course?.id){alert('Save course information first.');return;}
-  readQuestionDraftFromInputs();
-  const title=$('courseSectionTitleInput').value.trim();
-  const summary=$('courseSummaryInput').value.trim();
-  const section_number=Number($('courseSectionInput').value);
-  if(!title||!Number.isInteger(section_number)||section_number<1){alert('Enter a section title and valid section number.');return;}
-  // Validate the complete section before any database write.
-  if(!adminQuestionDraft.length){alert('Add at least one question to this section.');return;}
-  for(let i=0;i<adminQuestionDraft.length;i++){
-    const q=adminQuestionDraft[i];
-    if(!q.text||!q.answers?.length||q.answers.some(a=>!a.text)||q.answers.filter(a=>a.correct).length!==1){
-      alert(`Complete question ${i+1}, including its answers and exactly one correct answer.`);return;
-    }
-  }
-  const btn=$('saveSectionBtn');btn.disabled=true;
-  const originalText=btn.textContent;btn.textContent='Saving section and questions...';
-  try{
-    const payload={course_id:state.course.id,title,summary,section_number};
-    const query=activeSectionId
-      ?supabaseClient.from('learning_course_sections').update(payload).eq('id',activeSectionId)
-      :supabaseClient.from('learning_course_sections').insert(payload);
-    const {data,error}=await query.select('id').single();if(error)throw error;
-    activeSectionId=data.id;
-    await saveSectionQuestions();
-    await refreshAdminSections();
-    showSelectedSection();
-    alert('Section, summary, questions and answers saved successfully.');
-  }catch(e){console.error('Section save failed',e);alert('Save was not completed: '+(e.message||'Unknown error')+'\nPlease check this section before retrying.');}
-  finally{btn.disabled=false;btn.textContent=originalText;}
+$('addSectionBtn').onclick=()=>{
+  snapshotSelectedSection();
+  if(courseSectionDrafts.has('__new__')){activeSectionId=null;showSelectedSection();return;}
+  activeSectionId=null;
+  courseSectionDrafts.set('__new__',{
+    id:null,title:'',summary:'',
+    section_number:Math.max(0,...adminSections.map(s=>s.section_number),...Array.from(courseSectionDrafts.values()).map(s=>s.section_number||0))+1,
+    questions:[]
+  });
+  showSelectedSection();
 };
 function renderBuilder(){
   if($('editingCourseName')) $('editingCourseName').textContent=state.course?.title||'New course';
@@ -3325,91 +3317,63 @@ function renderBuilder(){
   showSelectedSection();
 }
 function renderQuestionBuilder(){$("questionBuilder").innerHTML=adminQuestionDraft.map((q,qi)=>`<div class="question-builder-item"><label>Question ${qi+1}</label><textarea data-q="${qi}" rows="2">${esc(q.text)}</textarea>${q.answers.map((a,ai)=>`<div class="answer-grid"><input data-a="${qi}:${ai}" value="${esc(a.text)}"><label class="correct-toggle"><input type="checkbox" data-c="${qi}:${ai}" ${a.correct?"checked":""}> Correct</label></div>`).join("")}<button class="remove-q" onclick="removeQuestion(${qi})">Remove question</button></div>`).join("")}
-$("addQuestionBtn").onclick=()=>{adminQuestionDraft.push({id:crypto.randomUUID(),text:"New question",answers:[{text:"Option A",correct:true},{text:"Option B",correct:false},{text:"Option C",correct:false},{text:"Option D",correct:false}]});renderQuestionBuilder()};
-window.removeQuestion=i=>{adminQuestionDraft.splice(i,1);renderQuestionBuilder()};
-$("saveCourseInfoBtn").onclick = async () => {
-  const btn = $("saveCourseInfoBtn");
-
-  const title =
-    $("courseTitleInput").value.trim() ||
-    "Untitled Course";
-
-  const subtitle =
-    $("courseSubtitleInput").value.trim();
-
-  const description =
-    $("courseDescriptionInput").value.trim();
-
-  const sectionNumber =
-    Number($("courseSectionInput").value) || 1;
-
-  const summary =
-    $("courseSummaryInput").value.trim();
-
-  const originalText = btn.innerHTML;
-
-  btn.disabled = true;
-
-  btn.innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
-
-  try {
-    // Never send an obsolete localStorage test ID to a UUID column.
-    const validUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const existingId = validUuid.test(state.course?.id || "") ? state.course.id : null;
-    const payload = { title, subtitle, description, updated_at: new Date().toISOString() };
-    const query = existingId
-      ? supabaseClient.from("learning_courses").update(payload).eq("id", existingId)
-      : supabaseClient.from("learning_courses").insert(payload);
-    const { data, error } = await query.select().single();
-
-    if (error) {
-      throw error;
+$("addQuestionBtn").onclick=()=>{readQuestionDraftFromInputs();adminQuestionDraft.push({id:crypto.randomUUID(),text:"New question",answers:[{text:"Option A",correct:true},{text:"Option B",correct:false},{text:"Option C",correct:false},{text:"Option D",correct:false}]});renderQuestionBuilder()};
+window.removeQuestion=i=>{readQuestionDraftFromInputs();adminQuestionDraft.splice(i,1);renderQuestionBuilder()};
+$('saveCourseBtn').onclick=async()=>{
+  snapshotSelectedSection();
+  const title=$('courseTitleInput').value.trim();
+  const subtitle=$('courseSubtitleInput').value.trim();
+  const description=$('courseDescriptionInput').value.trim();
+  if(!title){alert('Enter a course title.');return;}
+  const drafts=[...courseSectionDrafts.values()];
+  if(!drafts.length&&!adminSections.length){alert('Add at least one section before saving.');return;}
+  // Validate all modified sections BEFORE making any database changes.
+  const numbers=new Set(adminSections.map(s=>courseSectionDrafts.get(s.id)?.section_number??s.section_number));
+  for(const d of drafts){
+    if(!d.title||!Number.isInteger(d.section_number)||d.section_number<1){alert('Every edited section needs a title and valid number.');return;}
+    if(!d.questions.length){alert(`Add questions to section ${d.section_number}.`);return;}
+    for(const [i,q] of d.questions.entries()){
+      if(!q.text||!q.answers?.length||q.answers.some(a=>!a.text)||q.answers.filter(a=>a.correct).length!==1){
+        alert(`Complete question ${i+1} in section ${d.section_number}, including exactly one correct answer.`);return;
+      }
     }
-
-    state.course.id = data.id;
-    state.adminSelectedCourseId = data.id;
-    await loadAdminCourseLibrary();
-    state.course.title =
-      data.title;
-
-    state.course.subtitle =
-      data.subtitle || "";
-
-    state.course.description =
-      data.description || "";
-
-    state.course.section =
-      data.section_number || 1;
-
-    state.course.summary =
-      data.summary || "";
-
-    await refreshAdminSections();
-    renderAdmin();
-
-    alert(
-      "Course information saved successfully."
-    );
-
-  } catch (error) {
-    console.error(
-      "Course save failed:",
-      error
-    );
-
-    alert(
-      error?.message ||
-      "Unable to save course information."
-    );
-
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalText;
   }
+  if(numbers.size!==adminSections.length+(courseSectionDrafts.has('__new__')?1:0)){
+    alert('Section numbers must be unique.');return;
+  }
+  const btn=$('saveCourseBtn'),original=btn.textContent;
+  btn.disabled=true;btn.textContent='Saving course and sections...';
+  const selectedBefore=activeSectionId;
+  try{
+    const payload={title,subtitle,description,updated_at:new Date().toISOString()};
+    const query=state.course?.id
+      ?supabaseClient.from('learning_courses').update(payload).eq('id',state.course.id)
+      :supabaseClient.from('learning_courses').insert(payload);
+    const {data,error}=await query.select().single();if(error)throw error;
+    state.course.id=data.id;state.adminSelectedCourseId=data.id;
+    state.course.title=data.title;state.course.subtitle=data.subtitle||'';state.course.description=data.description||'';
+    for(const d of drafts){
+      const row={course_id:data.id,title:d.title,summary:d.summary,section_number:d.section_number};
+      const q=d.id
+        ?supabaseClient.from('learning_course_sections').update(row).eq('id',d.id)
+        :supabaseClient.from('learning_course_sections').insert(row);
+      const {data:section,error:sectionError}=await q.select('id').single();if(sectionError)throw sectionError;
+      activeSectionId=section.id;
+      adminQuestionDraft=JSON.parse(JSON.stringify(d.questions));
+      await saveSectionQuestions(true);
+    }
+    courseSectionDrafts.clear();
+    await refreshAdminSections();
+    if(selectedBefore&&adminSections.some(x=>x.id===selectedBefore))activeSectionId=selectedBefore;
+    await loadAdminCourseLibrary();
+    renderAdmin();
+    alert('Course information, sections, questions and answers saved.');
+  }catch(e){
+    console.error('Course save failed',e);
+    alert('Save did not fully complete: '+(e.message||'Unknown error')+'\nSome changes may already have saved. Reload and inspect before retrying.');
+  }finally{btn.disabled=false;btn.textContent=original;}
 };
-
-async function saveSectionQuestions() {
+async function saveSectionQuestions(skipInputRead = false) {
 
   if (!state.course?.id) {
     throw new Error("No Supabase course was loaded.");

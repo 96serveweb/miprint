@@ -274,7 +274,7 @@
       <div class="field"><label for="courseSubtitleInput">Subtitle</label><input id="courseSubtitleInput"></div>
       <div class="field course-description-field"><label for="courseDescriptionInput">Course description</label><textarea id="courseDescriptionInput" rows="4"></textarea></div>
     </div>
-    <button id="saveCourseInfoBtn" class="primary-btn">Save Course Information</button>
+
   </div>
   <div class="panel section-workspace">
     <div class="panel-title-row"><div><span class="panel-kicker">Step 2 · Course sections</span><h3>Sections and their questions</h3></div></div>
@@ -294,10 +294,10 @@
       <div class="section-questions-panel">
         <div class="panel-title-row"><div><span class="panel-kicker">Questions for this section only</span><h3>Questions and answers</h3></div><button id="addQuestionBtn" class="ghost-btn small">+ Add Question</button></div>
         <div id="questionBuilder"></div>
-        <div class="inline-actions"><button type="button" id="saveSectionBtn" class="primary-btn">Save Section &amp; Questions</button></div><p class="builder-hint">One save stores this section’s title, summary, questions and answers together.</p>
+        <p class="builder-hint">Changes to this section are included when you save the whole course.</p>
       </div>
     </div>
-  </div>
+  </div><div class="panel"><button type="button" id="saveCourseBtn" class="primary-btn">Save Course</button><p class="builder-hint">Saves course details and every edited section with its questions and answers.</p></div>
 </div></section>
 <section id="adminMaintenance" class="app-view hidden"><div class="view-head"><div><span>Administration</span><h2>Learning Data Reset</h2></div></div><div class="panel"><h3>Clear testing records</h3><p>This permanently deletes learning courses, questions, answers, applications, student records, enrolments, assessment attempts, certificates and certificate counters. Administrator accounts and unrelated website tables are preserved. Student authentication accounts in Supabase Auth are not deleted.</p><button id="resetLearningDataBtn" type="button" class="danger-btn" style="margin-top:20px">Reset All Learning Data</button></div></section>
 <section id="adminCertificates" class="app-view hidden"><div class="view-head"><div><span>Certificates</span><h2>Certificate Register</h2></div></div><div id="certificateAdminList" class="certificate-list"></div></section>
