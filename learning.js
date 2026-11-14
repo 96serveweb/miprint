@@ -3284,15 +3284,25 @@ $('addSectionBtn').onclick=()=>{
   $('courseSectionInput').value=Math.max(0,...adminSections.map(s=>s.section_number))+1;
   $('courseSummaryInput').value='';
   adminQuestionDraft=[];renderQuestionBuilder();
-  alert('Enter a section title and summary, then click Save Section.');
+  // The new section is saved together with its questions using the single button below.
 };
 $('saveSectionBtn').onclick=async()=>{
-  if(!state.course?.id){alert('Save course information first.');return}
+  if(!state.course?.id){alert('Save course information first.');return;}
+  readQuestionDraftFromInputs();
   const title=$('courseSectionTitleInput').value.trim();
   const summary=$('courseSummaryInput').value.trim();
   const section_number=Number($('courseSectionInput').value);
-  if(!title||!Number.isInteger(section_number)||section_number<1){alert('Enter a section title and valid section number.');return}
+  if(!title||!Number.isInteger(section_number)||section_number<1){alert('Enter a section title and valid section number.');return;}
+  // Validate the complete section before any database write.
+  if(!adminQuestionDraft.length){alert('Add at least one question to this section.');return;}
+  for(let i=0;i<adminQuestionDraft.length;i++){
+    const q=adminQuestionDraft[i];
+    if(!q.text||!q.answers?.length||q.answers.some(a=>!a.text)||q.answers.filter(a=>a.correct).length!==1){
+      alert(`Complete question ${i+1}, including its answers and exactly one correct answer.`);return;
+    }
+  }
   const btn=$('saveSectionBtn');btn.disabled=true;
+  const originalText=btn.textContent;btn.textContent='Saving section and questions...';
   try{
     const payload={course_id:state.course.id,title,summary,section_number};
     const query=activeSectionId
@@ -3300,8 +3310,12 @@ $('saveSectionBtn').onclick=async()=>{
       :supabaseClient.from('learning_course_sections').insert(payload);
     const {data,error}=await query.select('id').single();if(error)throw error;
     activeSectionId=data.id;
-    await refreshAdminSections();showSelectedSection();alert('Section saved. You can now add its questions.');
-  }catch(e){console.error(e);alert(e.message||'Unable to save section')}finally{btn.disabled=false}
+    await saveSectionQuestions();
+    await refreshAdminSections();
+    showSelectedSection();
+    alert('Section, summary, questions and answers saved successfully.');
+  }catch(e){console.error('Section save failed',e);alert('Save was not completed: '+(e.message||'Unknown error')+'\nPlease check this section before retrying.');}
+  finally{btn.disabled=false;btn.textContent=originalText;}
 };
 function renderBuilder(){
   if($('editingCourseName')) $('editingCourseName').textContent=state.course?.title||'New course';
@@ -3395,14 +3409,12 @@ $("saveCourseInfoBtn").onclick = async () => {
   }
 };
 
-$("saveQuestionsBtn").onclick = async () => {
-  const btn = $("saveQuestionsBtn");
+async function saveSectionQuestions() {
 
   if (!state.course?.id) {
-    alert("No Supabase course was loaded.");
-    return;
+    throw new Error("No Supabase course was loaded.");
   }
-  if(!activeSectionId){alert("Save or select a section before saving questions.");return;}
+  if(!activeSectionId)throw new Error("Save or select a section before saving questions.");
 
   $$("[data-q]").forEach(element => {
     const questionIndex =
@@ -3435,10 +3447,7 @@ $("saveQuestionsBtn").onclick = async () => {
   });
 
   if (!adminQuestionDraft.length) {
-    alert(
-      "Add at least one question before saving."
-    );
-    return;
+    throw new Error("Add at least one question before saving.");
   }
 
   for (
@@ -3450,17 +3459,11 @@ $("saveQuestionsBtn").onclick = async () => {
       adminQuestionDraft[i];
 
     if (!question.text) {
-      alert(
-        `Question ${i + 1} cannot be empty.`
-      );
-      return;
+      throw new Error(`Question ${i + 1} cannot be empty.`);
     }
 
     if (!question.answers?.length) {
-      alert(
-        `Question ${i + 1} needs answers.`
-      );
-      return;
+      throw new Error(`Question ${i + 1} needs answers.`);
     }
 
     const emptyAnswer =
@@ -3481,20 +3484,10 @@ $("saveQuestionsBtn").onclick = async () => {
       );
 
     if (correctAnswers.length !== 1) {
-      alert(
-        `Question ${i + 1} must have exactly one correct answer.`
-      );
-      return;
+      throw new Error(`Question ${i + 1} must have exactly one correct answer.`);
     }
   }
 
-  const originalText =
-    btn.innerHTML;
-
-  btn.disabled = true;
-
-  btn.innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
 
   try {
 
@@ -3612,29 +3605,13 @@ $("saveQuestionsBtn").onclick = async () => {
       ...JSON.parse(JSON.stringify(adminQuestionDraft)).map(q=>({...q,sectionId:activeSectionId}))
     ];
 
-    alert(
-      "Questions saved successfully."
-    );
 
-    renderAdmin();
 
   } catch (error) {
-    console.error(
-      "Question save failed:",
-      error
-    );
-
-    alert(
-      error?.message ||
-      "Unable to save the questions."
-    );
-
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML =
-      originalText;
+    console.error("Question save failed:", error);
+    throw error;
   }
-};
+}
 $("togglePublishBtn").onclick = async () => {
   const btn = $("togglePublishBtn");
 
