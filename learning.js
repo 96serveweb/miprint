@@ -2888,6 +2888,21 @@ window.approveApplication = async id => {
   if (!confirmed) return;
 
   try {
+    // Existing students already have a Supabase Auth account. Approve their
+    // course application without inviting/creating a second Auth user.
+    const existingApproval = await supabaseClient.rpc(
+      "approve_existing_learning_application",
+      { p_application_id: id }
+    );
+    if (existingApproval.error) throw existingApproval.error;
+    if (existingApproval.data === true) {
+      await loadAdminApplications();
+      await loadAdminStudents();
+      renderAdmin();
+      alert("Existing student approved for this course. Their account and results are unchanged.");
+      return;
+    }
+    // No existing learning_students profile: preserve original new-student flow.
     const {
       data,
       error
