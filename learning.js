@@ -1423,6 +1423,23 @@ async function openEnrolledCourse(courseId) {
 window.openEnrolledCourse =
   openEnrolledCourse;
 
+async function loadStudentLessonSections(courseId) {
+  const { data, error } = await supabaseClient.rpc(
+    "get_my_learning_course_sections", { p_course_id: courseId }
+  );
+  if (error) {
+    console.error("Unable to load lesson sections:", error);
+    throw new Error("Unable to load lesson sections. Check that the accompanying SQL update is installed.");
+  }
+  if (!Array.isArray(data)) throw new Error("Invalid lesson sections response.");
+  return data.map(section => ({
+    id: section.id,
+    number: Number(section.section_number),
+    title: section.title || "",
+    summary: section.summary || ""
+  })).sort((a,b) => a.number - b.number);
+}
+
 async function loadStudentCourse(
   courseId = null
 ) {
@@ -1633,6 +1650,8 @@ const canWriteAssessment =
 
     summary:
       course.summary || "",
+
+    sections: await loadStudentLessonSections(course.id),
 
     published:
       course.published === true,
@@ -2076,7 +2095,9 @@ $("courseContent")
     !allowed
   );
   
-  $("summarySections").innerHTML=`<article class="summary-card"><h4>Section ${state.course.section}: ${esc(state.course.title)}</h4><p>${esc(state.course.summary)}</p></article>`;
+  $("summarySections").innerHTML = (state.course.sections || []).length
+    ? state.course.sections.map(section => `<article class="summary-card"><h4>Section ${section.number}: ${esc(section.title)}</h4><p>${esc(section.summary || "No lesson details have been added to this section yet.")}</p></article>`).join("")
+    : `<article class="summary-card"><h4>Lesson details unavailable</h4><p>No saved sections were found for this course. Ask your administrator to check the saved lesson sections.</p></article>`;
  renderAssessment(s);renderResults(s);renderCerts(s);renderProfile(s);
  $("studentUpdateFeed").innerHTML=`<div class="update-item"><strong>Application approved</strong><span>Your student account is active.</span></div><div class="update-item"><strong>${state.course.published?"Course published":"Course hidden"}</strong><span>${esc(state.course.title)}</span></div>${best!==null?`<div class="update-item"><strong>Best mark: ${best}%</strong><span>${best>=60?"Pass":"Not yet passed"}</span></div>`:""}`
 }
@@ -2602,7 +2623,6 @@ function renderAdmin() {
     renderApplications();
     renderCourseApplications();
     renderStudents();
-    if(!$('adminCourse').classList.contains('hidden') && activeSectionId) snapshotSelectedSection();
     renderBuilder();
     renderAdminCourseLibrary();
     renderAdminCerts();
@@ -3206,13 +3226,30 @@ async function loadAdminCourseLibrary() {
     .order("created_at",{ascending:false});
   if(error) throw error;
   state.adminCourseLibrary=data||[];
+  // Fetch section summaries for each course; never silently hide saved lesson content.
+  const ids=state.adminCourseLibrary.map(c=>c.id);
+  if(ids.length){
+    const {data:sectionRows,error:sectionError}=await supabaseClient
+      .from('learning_course_sections')
+      .select('id,course_id,section_number,title,summary')
+      .in('course_id',ids).order('section_number',{ascending:true});
+    if(sectionError)throw sectionError;
+    for(const course of state.adminCourseLibrary){
+      course.sections=(sectionRows||[]).filter(s=>s.course_id===course.id);
+    }
+  }
   return state.adminCourseLibrary;
 }
 function renderAdminCourseLibrary() {
   const el=$("adminCoursesList");if(!el)return;
   const courses=state.adminCourseLibrary||[];
   el.innerHTML=courses.length?courses.map(x=>`<article class="course-library-row">
-    <div><strong>${esc(x.title)}</strong><p>${esc(x.subtitle||x.description||"")}</p><small>${x.published?"Published":"Hidden"} • ${x.closed?"Session closed":"Session open"} • ${x.assessment_open?"Assessment open":"Assessment closed"}</small></div>
+    <div><strong>${esc(x.title)}</strong>
+      ${x.subtitle?`<p>${esc(x.subtitle)}</p>`:''}
+      ${x.description?`<p>${esc(x.description)}</p>`:''}
+      <details class="course-library-details"><summary>View saved section details (${(x.sections||[]).length})</summary>
+      ${(x.sections||[]).length?(x.sections||[]).map(section=>`<div class="course-library-section"><strong>Section ${section.section_number}: ${esc(section.title)}</strong><p style="white-space:pre-wrap">${esc(section.summary||'No summary saved')}</p></div>`).join(''):'<p>No saved sections found for this course.</p>'}
+      </details><small>${x.published?"Published":"Hidden"} • ${x.closed?"Session closed":"Session open"} • ${x.assessment_open?"Assessment open":"Assessment closed"}</small></div>
     <div class="row-actions">
       <button class="secondary" onclick="editLibraryCourse('${x.id}')">Edit</button>
       <button class="approve" onclick="setLibraryPublish('${x.id}',${!x.published})">${x.published?"Hide Course":"Publish Course"}</button>
@@ -3223,7 +3260,7 @@ function renderAdminCourseLibrary() {
   </article>`).join(""):'<p>No saved courses yet. Click New Course to begin.</p>';
 }
 window.editLibraryCourse=async id=>{
-  try{state.adminSelectedCourseId=id;courseSectionDrafts.clear();await loadAdminCourse(id);renderAdmin();showAdminView("adminCourse");}
+  try{state.adminSelectedCourseId=id;builderRenderedCourseId=null;courseSectionDrafts.clear();adminSections=[];activeSectionId=null;adminQuestionDraft=[];await loadAdminCourse(id);renderAdmin();showAdminView("adminCourse");}
   catch(e){alert(e.message||"Unable to load this course.");}
 };
 async function updateLibraryCourseStatus(id, changes) {
@@ -3265,7 +3302,7 @@ window.repeatLibraryCourse=async id=>{
   catch(e){alert(e.message||"Unable to create repeat intake.");}
 };
 $("newCourseBtn").onclick=()=>{
-  state.adminSelectedCourseId=null;
+  state.adminSelectedCourseId=null;builderRenderedCourseId=null;
   state.course={id:null,title:"",subtitle:"",description:"",section:1,summary:"",published:false,assessmentOpen:false,questions:[]};
   state.courseClosed=false;adminSections=[];activeSectionId=null;courseSectionDrafts.clear();ensureInitialSection();renderAdmin();showAdminView("adminCourse");
 };
@@ -3291,6 +3328,7 @@ function readQuestionDraftFromInputs(){
 }
 // Keep unsaved edits for every section until the single Save Course action.
 let courseSectionDrafts = new Map();
+let builderRenderedCourseId = null;
 function sectionDraftKey(id){return id || '__new__';}
 function ensureInitialSection(){
   if(adminSections.length || courseSectionDrafts.size)return;
@@ -3348,6 +3386,12 @@ $('addSectionBtn').onclick=()=>{
   showSelectedSection();
 };
 function renderBuilder(){
+  // Do not overwrite an in-progress edit when dashboard data is refreshed.
+  if (builderRenderedCourseId === (state.course?.id || '__new__') &&
+      activeSectionId && $('courseSectionSelect')?.value === activeSectionId) {
+    snapshotSelectedSection();
+  }
+  builderRenderedCourseId = state.course?.id || '__new__';
   if($('editingCourseName')) $('editingCourseName').textContent=state.course?.title||'New course';
   $('courseTitleInput').value=state.course.title;
   $('courseSubtitleInput').value=state.course.subtitle;
@@ -3414,10 +3458,12 @@ $('saveCourseBtn').onclick=async()=>{
     if(error)throw error;
     if(!courseId)throw new Error('Save did not return a course ID.');
     courseSectionDrafts.clear();
+    builderRenderedCourseId=null;
     state.adminSelectedCourseId=courseId;
     await loadAdminCourse(courseId);
     await loadAdminCourseLibrary();
     renderAdmin();
+    showAdminView('adminCourse');
     alert('Course, sections, questions and answers saved successfully.');
   }catch(e){
     console.error('Atomic course save failed',e);
