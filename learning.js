@@ -1843,6 +1843,7 @@ async function loadAdminCourse(courseId = null) {
   if (!data) {
     state.course = { id: null, title: "", subtitle: "", description: "", section: 1, summary: "", published: false, assessmentOpen: false, questions: [] };
     state.courseClosed = false;
+    adminSections=[];activeSectionId=null;
     return null;
   }
 
@@ -1855,6 +1856,7 @@ async function loadAdminCourse(courseId = null) {
       id,
       question_text,
       sort_order,
+      section_id,
       learning_answers (
         id,
         answer_text,
@@ -1893,6 +1895,7 @@ async function loadAdminCourse(courseId = null) {
     questions: (questions || []).map(
   question => ({
     id: question.id,
+    sectionId: question.section_id,
 
     text:
       question.question_text,
@@ -1917,6 +1920,7 @@ async function loadAdminCourse(courseId = null) {
   state.courseClosed =
     data.closed === true;
 
+  await refreshAdminSections();
   return state.course;
 }
 
@@ -3240,10 +3244,72 @@ window.repeatLibraryCourse=async id=>{
 $("newCourseBtn").onclick=()=>{
   state.adminSelectedCourseId=null;
   state.course={id:null,title:"",subtitle:"",description:"",section:1,summary:"",published:false,assessmentOpen:false,questions:[]};
-  state.courseClosed=false;renderAdmin();showAdminView("adminCourse");
+  state.courseClosed=false;adminSections=[];activeSectionId=null;renderAdmin();showAdminView("adminCourse");
 };
 $("backToCoursesBtn").onclick=async()=>{await loadAdminCourseLibrary();renderAdminCourseLibrary();showAdminView("adminCourses");};
-function renderBuilder(){if($("editingCourseName")) $("editingCourseName").textContent=state.course?.title || "New course";["courseTitleInput","courseSubtitleInput","courseDescriptionInput","courseSectionInput","courseSummaryInput"].forEach(()=>{});$("courseTitleInput").value=state.course.title;$("courseSubtitleInput").value=state.course.subtitle;$("courseDescriptionInput").value=state.course.description;$("courseSectionInput").value=state.course.section;$("courseSummaryInput").value=state.course.summary;adminQuestionDraft=JSON.parse(JSON.stringify(state.course.questions||[]));renderQuestionBuilder()}
+// Section records are stored independently; the course-level assessment remains unchanged.
+let adminSections=[], activeSectionId=null;
+async function fetchCourseSections(courseId){
+  if(!courseId)return [];
+  const {data,error}=await supabaseClient.from("learning_course_sections")
+    .select("id,course_id,section_number,title,summary")
+    .eq("course_id",courseId).order("section_number",{ascending:true});
+  if(error)throw error;
+  return data||[];
+}
+async function refreshAdminSections(){
+  adminSections=await fetchCourseSections(state.course?.id);
+  if(!adminSections.some(s=>s.id===activeSectionId))activeSectionId=adminSections[0]?.id||null;
+}
+function readQuestionDraftFromInputs(){
+  $$('[data-q]').forEach(e=>{const q=adminQuestionDraft[Number(e.dataset.q)];if(q)q.text=e.value.trim()});
+  $$('[data-a]').forEach(e=>{const [q,a]=e.dataset.a.split(':').map(Number);if(adminQuestionDraft[q]?.answers[a])adminQuestionDraft[q].answers[a].text=e.value.trim()});
+  $$('[data-c]').forEach(e=>{const [q,a]=e.dataset.c.split(':').map(Number);if(adminQuestionDraft[q]?.answers[a])adminQuestionDraft[q].answers[a].correct=e.checked});
+}
+function showSelectedSection(){
+  const selected=adminSections.find(s=>s.id===activeSectionId);
+  $('courseSectionSelect').innerHTML=adminSections.map(s=>`<option value="${s.id}" ${s.id===activeSectionId?'selected':''}>Section ${s.section_number}: ${esc(s.title)}</option>`).join('');
+  $('courseSectionTitleInput').value=selected?.title||'';
+  $('courseSectionInput').value=selected?.section_number||1;
+  $('courseSummaryInput').value=selected?.summary||'';
+  adminQuestionDraft=JSON.parse(JSON.stringify((state.course.questions||[]).filter(q=>q.sectionId===activeSectionId)));
+  renderQuestionBuilder();
+}
+$('courseSectionSelect').onchange=e=>{readQuestionDraftFromInputs();if(!confirm('Switch section? Unsaved question changes will be lost.')){e.target.value=activeSectionId||'';return;}activeSectionId=e.target.value;showSelectedSection()};
+$('addSectionBtn').onclick=()=>{
+  if(!state.course?.id){alert('Save course information first.');return}
+  activeSectionId=null;
+  $('courseSectionSelect').value='';
+  $('courseSectionTitleInput').value='';
+  $('courseSectionInput').value=Math.max(0,...adminSections.map(s=>s.section_number))+1;
+  $('courseSummaryInput').value='';
+  adminQuestionDraft=[];renderQuestionBuilder();
+  alert('Enter a section title and summary, then click Save Section.');
+};
+$('saveSectionBtn').onclick=async()=>{
+  if(!state.course?.id){alert('Save course information first.');return}
+  const title=$('courseSectionTitleInput').value.trim();
+  const summary=$('courseSummaryInput').value.trim();
+  const section_number=Number($('courseSectionInput').value);
+  if(!title||!Number.isInteger(section_number)||section_number<1){alert('Enter a section title and valid section number.');return}
+  const btn=$('saveSectionBtn');btn.disabled=true;
+  try{
+    const payload={course_id:state.course.id,title,summary,section_number};
+    const query=activeSectionId
+      ?supabaseClient.from('learning_course_sections').update(payload).eq('id',activeSectionId)
+      :supabaseClient.from('learning_course_sections').insert(payload);
+    const {data,error}=await query.select('id').single();if(error)throw error;
+    activeSectionId=data.id;
+    await refreshAdminSections();showSelectedSection();alert('Section saved. You can now add its questions.');
+  }catch(e){console.error(e);alert(e.message||'Unable to save section')}finally{btn.disabled=false}
+};
+function renderBuilder(){
+  if($('editingCourseName')) $('editingCourseName').textContent=state.course?.title||'New course';
+  $('courseTitleInput').value=state.course.title;
+  $('courseSubtitleInput').value=state.course.subtitle;
+  $('courseDescriptionInput').value=state.course.description;
+  showSelectedSection();
+}
 function renderQuestionBuilder(){$("questionBuilder").innerHTML=adminQuestionDraft.map((q,qi)=>`<div class="question-builder-item"><label>Question ${qi+1}</label><textarea data-q="${qi}" rows="2">${esc(q.text)}</textarea>${q.answers.map((a,ai)=>`<div class="answer-grid"><input data-a="${qi}:${ai}" value="${esc(a.text)}"><label class="correct-toggle"><input type="checkbox" data-c="${qi}:${ai}" ${a.correct?"checked":""}> Correct</label></div>`).join("")}<button class="remove-q" onclick="removeQuestion(${qi})">Remove question</button></div>`).join("")}
 $("addQuestionBtn").onclick=()=>{adminQuestionDraft.push({id:crypto.randomUUID(),text:"New question",answers:[{text:"Option A",correct:true},{text:"Option B",correct:false},{text:"Option C",correct:false},{text:"Option D",correct:false}]});renderQuestionBuilder()};
 window.removeQuestion=i=>{adminQuestionDraft.splice(i,1);renderQuestionBuilder()};
@@ -3277,7 +3343,7 @@ $("saveCourseInfoBtn").onclick = async () => {
     // Never send an obsolete localStorage test ID to a UUID column.
     const validUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const existingId = validUuid.test(state.course?.id || "") ? state.course.id : null;
-    const payload = { title, subtitle, description, section_number: sectionNumber, summary, updated_at: new Date().toISOString() };
+    const payload = { title, subtitle, description, updated_at: new Date().toISOString() };
     const query = existingId
       ? supabaseClient.from("learning_courses").update(payload).eq("id", existingId)
       : supabaseClient.from("learning_courses").insert(payload);
@@ -3305,6 +3371,7 @@ $("saveCourseInfoBtn").onclick = async () => {
     state.course.summary =
       data.summary || "";
 
+    await refreshAdminSections();
     renderAdmin();
 
     alert(
@@ -3335,6 +3402,7 @@ $("saveQuestionsBtn").onclick = async () => {
     alert("No Supabase course was loaded.");
     return;
   }
+  if(!activeSectionId){alert("Save or select a section before saving questions.");return;}
 
   $$("[data-q]").forEach(element => {
     const questionIndex =
@@ -3431,51 +3499,16 @@ $("saveQuestionsBtn").onclick = async () => {
   try {
 
     const oldQuestions =
-      state.course.questions || [];
+      (state.course.questions || []).filter(q=>q.sectionId===activeSectionId);
 
     const draftQuestionIds =
       adminQuestionDraft.map(
         question => question.id
       );
 
-    const removedQuestions =
-      oldQuestions.filter(
-        question =>
-          question.id &&
-          !draftQuestionIds.includes(
-            question.id
-          )
-      );
-
-    for (
-      const question of removedQuestions
-    ) {
-
-      const {
-        error: answerDeleteError
-      } = await supabaseClient
-        .from("learning_answers")
-        .delete()
-        .eq(
-          "question_id",
-          question.id
-        );
-
-      if (answerDeleteError) {
-        throw answerDeleteError;
-      }
-
-      const {
-        error: questionDeleteError
-      } = await supabaseClient
-        .from("learning_questions")
-        .delete()
-        .eq("id", question.id);
-
-      if (questionDeleteError) {
-        throw questionDeleteError;
-      }
-    }
+    // Safety: never implicitly delete existing questions when saving a section.
+    const missingQuestionIds=oldQuestions.filter(q=>q.id&&!draftQuestionIds.includes(q.id));
+    if(missingQuestionIds.length)throw new Error('Saving would remove existing questions. Removal is disabled for safety.');
 
     for (
       let questionIndex = 0;
@@ -3502,6 +3535,7 @@ $("saveQuestionsBtn").onclick = async () => {
 
           course_id:
             state.course.id,
+          section_id:activeSectionId,
 
           question_text:
             question.text,
@@ -3528,29 +3562,8 @@ $("saveQuestionsBtn").onclick = async () => {
           .filter(answer => answer.id)
           .map(answer => answer.id);
 
-      const removedAnswers =
-        oldAnswers.filter(
-          answer =>
-            answer.id &&
-            !draftAnswerIds.includes(
-              answer.id
-            )
-        );
-
-      for (
-        const answer of removedAnswers
-      ) {
-        const {
-          error: deleteError
-        } = await supabaseClient
-          .from("learning_answers")
-          .delete()
-          .eq("id", answer.id);
-
-        if (deleteError) {
-          throw deleteError;
-        }
-      }
+      // Safety: never implicitly delete existing answers.
+      if(oldAnswers.some(a=>a.id&&!draftAnswerIds.includes(a.id)))throw new Error('Saving would remove existing answers. Removal is disabled for safety.');
 
       for (
         let answerIndex = 0;
@@ -3594,12 +3607,10 @@ $("saveQuestionsBtn").onclick = async () => {
       }
     }
 
-    state.course.questions =
-      JSON.parse(
-        JSON.stringify(
-          adminQuestionDraft
-        )
-      );
+    state.course.questions = [
+      ...(state.course.questions||[]).filter(q=>q.sectionId!==activeSectionId),
+      ...JSON.parse(JSON.stringify(adminQuestionDraft)).map(q=>({...q,sectionId:activeSectionId}))
+    ];
 
     alert(
       "Questions saved successfully."
