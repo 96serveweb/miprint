@@ -1861,6 +1861,8 @@ async function loadAdminCourse() {
   courseRows?.[0] || null;
 
   if (!data) {
+    state.course = { id: null, title: "", subtitle: "", description: "", section: 1, summary: "", published: false, assessmentOpen: false, questions: [] };
+    state.courseClosed = false;
     return null;
   }
 
@@ -3254,33 +3256,20 @@ $("saveCourseInfoBtn").onclick = async () => {
     '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
 
   try {
-    if (!state.course?.id) {
-      throw new Error(
-        "No Supabase course was loaded."
-      );
-    }
-
-    const {
-      data,
-      error
-    } = await supabaseClient
-      .from("learning_courses")
-      .update({
-        title,
-        subtitle,
-        description,
-        section_number: sectionNumber,
-        summary,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", state.course.id)
-      .select()
-      .single();
+    // Never send an obsolete localStorage test ID to a UUID column.
+    const validUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const existingId = validUuid.test(state.course?.id || "") ? state.course.id : null;
+    const payload = { title, subtitle, description, section_number: sectionNumber, summary, updated_at: new Date().toISOString() };
+    const query = existingId
+      ? supabaseClient.from("learning_courses").update(payload).eq("id", existingId)
+      : supabaseClient.from("learning_courses").insert(payload);
+    const { data, error } = await query.select().single();
 
     if (error) {
       throw error;
     }
 
+    state.course.id = data.id;
     state.course.title =
       data.title;
 
@@ -3735,6 +3724,29 @@ $("toggleAssessmentBtn").onclick = async () => {
 } finally {
   btn.disabled = false;
 }
+};
+
+$("resetLearningDataBtn").onclick = async () => {
+  const first = confirm("PERMANENT RESET: Delete ALL learning courses, questions, applications, student records, attempts and certificates? Admin accounts and other website data will remain. This cannot be undone.");
+  if (!first) return;
+  const phrase = prompt('Type RESET LEARNING DATA to confirm permanent deletion:');
+  if (phrase !== 'RESET LEARNING DATA') return;
+  const btn = $("resetLearningDataBtn");
+  btn.disabled = true;
+  try {
+    const { data, error } = await supabaseClient.rpc("admin_reset_learning_data");
+    if (error) throw error;
+    if (data !== true) throw new Error("Database did not confirm the reset.");
+    localStorage.removeItem(STORE_KEY);
+    state = initialState();
+    state.course = { id: null, title: "", subtitle: "", description: "", section: 1, summary: "", published: false, assessmentOpen: false, questions: [] };
+    state.applications = []; state.students = []; state.certificates = []; state.courseApplications = [];
+    await showAdmin();
+    alert("Learning records were cleared. Administrator records were preserved. Save Course Information to create a fresh course.");
+  } catch (error) {
+    console.error("Learning reset failed:", error);
+    alert("Reset failed; no successful reset was confirmed. " + (error?.message || "Please check the database function."));
+  } finally { btn.disabled = false; }
 };
 
 $("closeCourseBtn").onclick = async () => {
