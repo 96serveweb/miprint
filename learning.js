@@ -2608,16 +2608,6 @@ function renderAdmin() {
     renderAdminCerts();
 
 
-  $("togglePublishBtn").textContent =
-    state.course.published
-      ? "Hide Course"
-      : "Publish Course";
-
-
-  $("toggleAssessmentBtn").textContent =
-    state.course.assessmentOpen
-      ? "Close Assessment"
-      : "Open Assessment";
 }
 
 function renderApplications() {
@@ -3222,18 +3212,50 @@ function renderAdminCourseLibrary() {
   const el=$("adminCoursesList");if(!el)return;
   const courses=state.adminCourseLibrary||[];
   el.innerHTML=courses.length?courses.map(x=>`<article class="course-library-row">
-    <div><strong>${esc(x.title)}</strong><p>${esc(x.subtitle||x.description||"")}</p><small>${x.published?"Published":"Unpublished"} • ${x.closed?"Closed":"Open"} • ${x.assessment_open?"Assessment open":"Assessment closed"}</small></div>
-    <div class="row-actions"><button class="secondary" onclick="editLibraryCourse('${x.id}')">Edit</button><button class="approve" onclick="setLibraryPublish('${x.id}',${!x.published})">${x.published?"Unpublish":"Publish"}</button><button class="secondary" onclick="repeatLibraryCourse('${x.id}')">Repeat as New Intake</button></div>
+    <div><strong>${esc(x.title)}</strong><p>${esc(x.subtitle||x.description||"")}</p><small>${x.published?"Published":"Hidden"} • ${x.closed?"Session closed":"Session open"} • ${x.assessment_open?"Assessment open":"Assessment closed"}</small></div>
+    <div class="row-actions">
+      <button class="secondary" onclick="editLibraryCourse('${x.id}')">Edit</button>
+      <button class="approve" onclick="setLibraryPublish('${x.id}',${!x.published})">${x.published?"Hide Course":"Publish Course"}</button>
+      <button class="secondary" onclick="setLibraryAssessment('${x.id}',${!x.assessment_open})">${x.assessment_open?"Close Assessment":"Open Assessment"}</button>
+      <button class="${x.closed?'secondary':'reject'}" onclick="setLibrarySession('${x.id}',${!x.closed})">${x.closed?"Reopen Course Session":"Close Course Session"}</button>
+      <button class="secondary" onclick="repeatLibraryCourse('${x.id}')">Repeat as New Intake</button>
+    </div>
   </article>`).join(""):'<p>No saved courses yet. Click New Course to begin.</p>';
 }
 window.editLibraryCourse=async id=>{
   try{state.adminSelectedCourseId=id;courseSectionDrafts.clear();await loadAdminCourse(id);renderAdmin();showAdminView("adminCourse");}
   catch(e){alert(e.message||"Unable to load this course.");}
 };
-window.setLibraryPublish=async(id,published)=>{
-  try{const {error}=await supabaseClient.from("learning_courses").update({published,updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;
-    await loadAdminCourseLibrary();if(state.course?.id===id)state.course.published=published;renderAdmin();}
-  catch(e){alert(e.message||"Unable to update publication.");}
+async function updateLibraryCourseStatus(id, changes) {
+  const course=(state.adminCourseLibrary||[]).find(x=>x.id===id);
+  if(!course) { alert("Course not found. Reload Manage Courses."); return; }
+  try {
+    const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+    if(authError||!user) throw Error("Administrator session expired. Log in again.");
+    const {data:isAdmin,error:adminError}=await supabaseClient.rpc("is_learning_admin");
+    if(adminError||isAdmin!==true) throw Error("Administrator access could not be verified.");
+    const {data,error}=await supabaseClient.from("learning_courses")
+      .update({...changes,updated_at:new Date().toISOString()})
+      .eq("id",id).select("id,published,closed,assessment_open").single();
+    if(error) throw error;
+    await loadAdminCourseLibrary();
+    if(state.course?.id===id) {
+      state.course.published=data.published;
+      state.course.assessmentOpen=data.assessment_open;
+      state.courseClosed=data.closed;
+    }
+    renderAdminCourseLibrary();
+  } catch(e) {console.error("Course status update failed",e);alert(e?.message||"Unable to update course status.");}
+}
+window.setLibraryPublish=(id,published)=>updateLibraryCourseStatus(id,{published});
+window.setLibraryAssessment=(id,assessmentOpen)=>updateLibraryCourseStatus(id,{assessment_open:assessmentOpen});
+window.setLibrarySession=(id,closed)=>{
+  const course=(state.adminCourseLibrary||[]).find(x=>x.id===id);
+  if(!course)return;
+  const verb=closed?"Close":"Reopen";
+  if(!confirm(`${verb} the course session for "${course.title}"? This does not delete any course or student records.`))return;
+  // Session status is independent of publication and assessment status.
+  return updateLibraryCourseStatus(id,{closed});
 };
 window.repeatLibraryCourse=async id=>{
   if(!confirm("Create a separate new intake with copied sections, questions and answers? Previous students will NOT be enrolled in the new intake."))return;
@@ -3608,128 +3630,6 @@ async function saveSectionQuestions(skipInputRead = false) {
     throw error;
   }
 }
-$("togglePublishBtn").onclick = async () => {
-  const btn = $("togglePublishBtn");
-
-  if (!state.course?.id) {
-    alert("No Supabase course was loaded.");
-    return;
-  }
-
-  const newPublishedState =
-    !state.course.published;
-
-  const originalText =
-    btn.innerHTML;
-
-  btn.disabled = true;
-
-  btn.innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin"></i> Updating...';
-
-  try {
-    const {
-      data,
-      error
-    } = await supabaseClient
-      .from("learning_courses")
-      .update({
-        published: newPublishedState,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", state.course.id)
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    state.course.published =
-      data.published === true;
-
-    renderAdmin();
-
-  } catch (error) {
-    console.error(
-      "Course publish update failed:",
-      error
-    );
-
-    alert(
-      error?.message ||
-      "Unable to update course status."
-    );
-
-  } finally {
-    btn.disabled = false;
-  }
-};
-
-$("toggleAssessmentBtn").onclick = async () => {
-  const btn = $("toggleAssessmentBtn");
-
-  if (!state.course?.id) {
-    alert("No Supabase course was loaded.");
-    return;
-  }
-
-  const newAssessmentState =
-    !state.course.assessmentOpen;
-
-  const originalText =
-    btn.innerHTML;
-
-  btn.disabled = true;
-
-  btn.innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin"></i> Updating...';
-
-  try {
-    const {
-      data,
-      error
-    } = await supabaseClient
-      .from("learning_courses")
-      .update({
-        assessment_open:
-          newAssessmentState,
-
-        updated_at:
-          new Date().toISOString()
-      })
-      .eq("id", state.course.id)
-      .select(`
-        id,
-        assessment_open
-      `)
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    state.course.assessmentOpen =
-      data.assessment_open === true;
-
-    renderAdmin();
-
-  } catch (error) {
-    console.error(
-      "Assessment status update failed:",
-      error
-    );
-
-    alert(
-      error?.message ||
-      "Unable to update assessment status."
-    );
-
-} finally {
-  btn.disabled = false;
-}
-};
-
 $("resetLearningDataBtn").onclick = async () => {
   const first = confirm("PERMANENT RESET: Delete ALL learning courses, questions, applications, student records, attempts and certificates? Admin accounts and other website data will remain. This cannot be undone.");
   if (!first) return;
@@ -3751,115 +3651,6 @@ $("resetLearningDataBtn").onclick = async () => {
     console.error("Learning reset failed:", error);
     alert("Reset failed; no successful reset was confirmed. " + (error?.message || "Please check the database function."));
   } finally { btn.disabled = false; }
-};
-
-$("closeCourseBtn").onclick = async () => {
-  const btn = $("closeCourseBtn");
-
-  if (!state.course?.id) {
-    alert("No course is currently loaded.");
-    return;
-  }
-
-  const confirmed = confirm(
-    "Close this course and start a new blank course?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  const originalText = btn.innerHTML;
-
-  btn.disabled = true;
-
-  btn.innerHTML =
-    '<i class="fa-solid fa-spinner fa-spin"></i> Closing...';
-
-  try {
-
-    const {
-      error: closeError
-    } = await supabaseClient
-      .from("learning_courses")
-      .update({
-        closed: true,
-        published: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", state.course.id);
-
-    if (closeError) {
-      throw closeError;
-    }
-
-    const {
-      data: newCourse,
-      error: createError
-    } = await supabaseClient
-      .from("learning_courses")
-      .insert({
-        title: "New Course",
-        subtitle: "",
-        description: "",
-        section_number: 1,
-        summary: "",
-        published: false,
-        closed: false
-      })
-      .select()
-      .single();
-
-    if (createError) {
-      throw createError;
-    }
-
-    state.course = {
-      id: newCourse.id,
-
-      title:
-        newCourse.title,
-
-      subtitle: "",
-
-      description: "",
-
-      section: 1,
-
-      summary: "",
-
-      published: false,
-
-      questions: []
-    };
-
-    state.courseClosed = false;
-
-    adminQuestionDraft = [];
-
-
-    renderAdmin();
-
-    alert(
-      "Course closed. A new blank course is ready."
-    );
-
-  } catch (error) {
-    console.error(
-      "Course closing failed:",
-      error
-    );
-
-    alert(
-      error?.message ||
-      "Unable to close the course."
-    );
-
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML =
-      originalText;
-  }
 };
 
 function renderAdminCerts(){const all=state.students.flatMap(s=>(s.certificates||[]).map(c=>({s,c})));$("certificateAdminList").innerHTML=all.length?all.map(({s,c})=>`<article class="certificate-card"><h3>${esc(s.fullName)}</h3><p><strong>${esc(c.certificateCode||"Pending code")}</strong> • ${esc(c.courseTitle)} • ${c.score}% • ${new Date(c.awardedAt).toLocaleDateString()}</p><button class="primary-btn" onclick="openCertificate('${s.id}','${c.id}')">Print / Save PDF</button></article>`).join(""):`<div class="locked-card"><i class="fa-solid fa-award"></i><h3>No certificates yet</h3></div>`}
