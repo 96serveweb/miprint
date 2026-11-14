@@ -3327,64 +3327,69 @@ function renderBuilder(){
 function renderQuestionBuilder(){$("questionBuilder").innerHTML=adminQuestionDraft.map((q,qi)=>`<div class="question-builder-item"><label>Question ${qi+1}</label><textarea data-q="${qi}" rows="2">${esc(q.text)}</textarea>${q.answers.map((a,ai)=>`<div class="answer-grid"><input data-a="${qi}:${ai}" value="${esc(a.text)}"><label class="correct-toggle"><input type="checkbox" data-c="${qi}:${ai}" ${a.correct?"checked":""}> Correct</label></div>`).join("")}<button class="remove-q" onclick="removeQuestion(${qi})">Remove question</button></div>`).join("")}
 $("addQuestionBtn").onclick=()=>{readQuestionDraftFromInputs();adminQuestionDraft.push({id:crypto.randomUUID(),text:"New question",answers:[{text:"Option A",correct:true},{text:"Option B",correct:false},{text:"Option C",correct:false},{text:"Option D",correct:false}]});renderQuestionBuilder()};
 window.removeQuestion=i=>{readQuestionDraftFromInputs();adminQuestionDraft.splice(i,1);renderQuestionBuilder()};
+// One request, one PostgreSQL transaction. No partial course saves.
 $('saveCourseBtn').onclick=async()=>{
   snapshotSelectedSection();
   const title=$('courseTitleInput').value.trim();
   const subtitle=$('courseSubtitleInput').value.trim();
   const description=$('courseDescriptionInput').value.trim();
   if(!title){alert('Enter a course title.');return;}
-  const drafts=[...courseSectionDrafts.values()];
-  if(!drafts.length&&!adminSections.length){alert('Add at least one section before saving.');return;}
-  // Validate all modified sections BEFORE making any database changes.
-  // Include persisted sections AND every new/edited section in the same validation.
-  const allSectionNumbers = [
-    ...adminSections.map(s => courseSectionDrafts.get(s.id)?.section_number ?? s.section_number),
-    ...[...courseSectionDrafts.entries()].filter(([key,d]) => !d.id).map(([key,d]) => d.section_number)
-  ];
-  const numbers = new Set(allSectionNumbers);
-  for(const d of drafts){
-    if(!d.title||!Number.isInteger(d.section_number)||d.section_number<1){alert('Every edited section needs a title and valid number.');return;}
-    if(!d.questions.length){alert(`Add questions to section ${d.section_number}.`);return;}
-    for(const [i,q] of d.questions.entries()){
-      if(!q.text||!q.answers?.length||q.answers.some(a=>!a.text)||q.answers.filter(a=>a.correct).length!==1){
-        alert(`Complete question ${i+1} in section ${d.section_number}, including exactly one correct answer.`);return;
+  const sections=adminSections.map(saved=>{
+    const draft=courseSectionDrafts.get(saved.id);
+    return draft||{
+      id:saved.id,title:saved.title,summary:saved.summary,
+      section_number:saved.section_number,
+      questions:JSON.parse(JSON.stringify((state.course.questions||[]).filter(q=>q.sectionId===saved.id)))
+    };
+  }).concat([...courseSectionDrafts.values()].filter(d=>!d.id));
+  if(!sections.length){alert('Add at least one section before saving.');return;}
+  const numbers=new Set();
+  for(const section of sections){
+    if(!section.title||!Number.isInteger(section.section_number)||section.section_number<1){
+      alert('Every section needs a title and a valid number.');return;
+    }
+    if(numbers.has(section.section_number)){
+      alert('Section numbers must be unique.');return;
+    }
+    numbers.add(section.section_number);
+    if(!section.questions?.length){alert(`Add questions to section ${section.section_number}.`);return;}
+    for(const [i,q] of section.questions.entries()){
+      if(!q.text?.trim()||!q.answers?.length||q.answers.some(a=>!a.text?.trim())||q.answers.filter(a=>a.correct).length!==1){
+        alert(`Complete question ${i+1} in section ${section.section_number}, including exactly one correct answer.`);return;
       }
     }
   }
-  if(numbers.size!==allSectionNumbers.length){
-    alert('Section numbers must be unique.');return;
-  }
   const btn=$('saveCourseBtn'),original=btn.textContent;
-  btn.disabled=true;btn.textContent='Saving course and sections...';
-  const selectedBefore=activeSectionId;
+  btn.disabled=true;btn.textContent='Saving course...';
   try{
-    const payload={title,subtitle,description,updated_at:new Date().toISOString()};
-    const query=state.course?.id
-      ?supabaseClient.from('learning_courses').update(payload).eq('id',state.course.id)
-      :supabaseClient.from('learning_courses').insert(payload);
-    const {data,error}=await query.select().single();if(error)throw error;
-    state.course.id=data.id;state.adminSelectedCourseId=data.id;
-    state.course.title=data.title;state.course.subtitle=data.subtitle||'';state.course.description=data.description||'';
-    for(const d of drafts){
-      const row={course_id:data.id,title:d.title,summary:d.summary,section_number:d.section_number};
-      const q=d.id
-        ?supabaseClient.from('learning_course_sections').update(row).eq('id',d.id)
-        :supabaseClient.from('learning_course_sections').insert(row);
-      const {data:section,error:sectionError}=await q.select('id').single();if(sectionError)throw sectionError;
-      activeSectionId=section.id;
-      adminQuestionDraft=JSON.parse(JSON.stringify(d.questions));
-      await saveSectionQuestions(true);
-    }
+    const {data:{user},error:authError}=await supabaseClient.auth.getUser();
+    if(authError||!user)throw new Error('Administrator login expired. Log in again before saving.');
+    const {data:isAdmin,error:adminError}=await supabaseClient.rpc('is_learning_admin');
+    if(adminError||isAdmin!==true)throw new Error('This login does not have active learning administrator access.');
+    const persistedQuestionIds=new Set((state.course.questions||[]).map(q=>q.id));
+    const persistedAnswerIds=new Set((state.course.questions||[]).flatMap(q=>q.answers||[]).map(a=>a.id));
+    const {data:courseId,error}=await supabaseClient.rpc('admin_save_learning_course_atomic',{
+      p_course_id:state.course?.id||null,
+      p_title:title,p_subtitle:subtitle,p_description:description,
+      p_sections:sections.map(d=>({
+        id:d.id||null,title:d.title,summary:d.summary||'',section_number:d.section_number,
+        questions:d.questions.map(q=>({
+          id:persistedQuestionIds.has(q.id)?q.id:null,text:q.text,
+          answers:q.answers.map(a=>({id:persistedAnswerIds.has(a.id)?a.id:null,text:a.text,correct:a.correct===true}))
+        }))
+      }))
+    });
+    if(error)throw error;
+    if(!courseId)throw new Error('Save did not return a course ID.');
     courseSectionDrafts.clear();
-    await refreshAdminSections();
-    if(selectedBefore&&adminSections.some(x=>x.id===selectedBefore))activeSectionId=selectedBefore;
-    else activeSectionId=adminSections[adminSections.length-1]?.id||null;
+    state.adminSelectedCourseId=courseId;
+    await loadAdminCourse(courseId);
     await loadAdminCourseLibrary();
     renderAdmin();
-    alert('Course information, sections, questions and answers saved.');
+    alert('Course, sections, questions and answers saved successfully.');
   }catch(e){
-    console.error('Course save failed',e);
-    alert('Save did not fully complete: '+(e.message||'Unknown error')+'\nSome changes may already have saved. Reload and inspect before retrying.');
+    console.error('Atomic course save failed',e);
+    alert('Course was not saved: '+(e.message||'Unknown error')+'\nYour unsaved edits are still on this page.');
   }finally{btn.disabled=false;btn.textContent=original;}
 };
 async function saveSectionQuestions(skipInputRead = false) {
