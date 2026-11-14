@@ -1843,7 +1843,7 @@ async function loadAdminCourse(courseId = null) {
   if (!data) {
     state.course = { id: null, title: "", subtitle: "", description: "", section: 1, summary: "", published: false, assessmentOpen: false, questions: [] };
     state.courseClosed = false;
-    adminSections=[];activeSectionId=null;
+    adminSections=[];activeSectionId=null;courseSectionDrafts.clear();
     return null;
   }
 
@@ -3270,10 +3270,11 @@ function readQuestionDraftFromInputs(){
 let courseSectionDrafts = new Map();
 function sectionDraftKey(id){return id || '__new__';}
 function snapshotSelectedSection(){
-  if(!$('courseSectionTitleInput'))return;
+  if(!$('courseSectionTitleInput') || !activeSectionId)return;
   readQuestionDraftFromInputs();
-  courseSectionDrafts.set(sectionDraftKey(activeSectionId),{
-    id:activeSectionId,
+  const saved=adminSections.find(s=>s.id===activeSectionId);
+  courseSectionDrafts.set(activeSectionId,{
+    id:saved?.id||null,
     title:$('courseSectionTitleInput').value.trim(),
     summary:$('courseSummaryInput').value.trim(),
     section_number:Number($('courseSectionInput').value),
@@ -3282,12 +3283,15 @@ function snapshotSelectedSection(){
 }
 function showSelectedSection(){
   const selected=adminSections.find(s=>s.id===activeSectionId);
-  const draft=courseSectionDrafts.get(sectionDraftKey(activeSectionId));
-  $('courseSectionSelect').innerHTML=adminSections.map(s=>`<option value="${s.id}" ${s.id===activeSectionId?'selected':''}>Section ${s.section_number}: ${esc(s.title)}</option>`).join('')+
-    (courseSectionDrafts.has('__new__')?'<option value="__new__">New section (unsaved)</option>':'');
-  if(!activeSectionId&&courseSectionDrafts.has('__new__'))$('courseSectionSelect').value='__new__';
+  const draft=courseSectionDrafts.get(activeSectionId);
+  const newDrafts=[...courseSectionDrafts.entries()].filter(([key,d])=>!d.id);
+  $('courseSectionSelect').innerHTML=adminSections.map(s=>{
+    const edited=courseSectionDrafts.get(s.id);
+    return `<option value="${s.id}">Section ${edited?.section_number??s.section_number}: ${esc(edited?.title??s.title)}</option>`;
+  }).join('')+newDrafts.map(([key,d])=>`<option value="${key}">Section ${d.section_number}: ${esc(d.title||'New section (unsaved)')}</option>`).join('');
+  $('courseSectionSelect').value=activeSectionId||'';
   $('courseSectionTitleInput').value=draft?.title??selected?.title??'';
-  $('courseSectionInput').value=draft?.section_number??selected?.section_number??Math.max(1,...adminSections.map(s=>s.section_number+1));
+  $('courseSectionInput').value=draft?.section_number??selected?.section_number??'';
   $('courseSummaryInput').value=draft?.summary??selected?.summary??'';
   adminQuestionDraft=JSON.parse(JSON.stringify(draft?.questions??(state.course.questions||[]).filter(q=>q.sectionId===activeSectionId)));
   renderQuestionBuilder();
@@ -3295,17 +3299,21 @@ function showSelectedSection(){
 $('courseSectionSelect').onchange=e=>{
   const target=e.target.value;
   snapshotSelectedSection();
-  activeSectionId=target==='__new__'?null:target;
+  activeSectionId=target||null;
   showSelectedSection();
 };
 $('addSectionBtn').onclick=()=>{
   snapshotSelectedSection();
-  if(courseSectionDrafts.has('__new__')){activeSectionId=null;showSelectedSection();return;}
-  activeSectionId=null;
-  courseSectionDrafts.set('__new__',{
-    id:null,title:'',summary:'',
-    section_number:Math.max(0,...adminSections.map(s=>s.section_number),...Array.from(courseSectionDrafts.values()).map(s=>s.section_number||0))+1,
-    questions:[]
+  const used=new Set([
+    ...adminSections.map(s=>courseSectionDrafts.get(s.id)?.section_number??s.section_number),
+    ...[...courseSectionDrafts.values()].filter(d=>!d.id).map(d=>d.section_number)
+  ]);
+  let number=1;
+  while(used.has(number))number++;
+  const key='__draft_'+crypto.randomUUID();
+  activeSectionId=key;
+  courseSectionDrafts.set(key,{
+    id:null,title:'',summary:'',section_number:number,questions:[]
   });
   showSelectedSection();
 };
@@ -3331,7 +3339,7 @@ $('saveCourseBtn').onclick=async()=>{
   // Include persisted sections AND every new/edited section in the same validation.
   const allSectionNumbers = [
     ...adminSections.map(s => courseSectionDrafts.get(s.id)?.section_number ?? s.section_number),
-    ...drafts.filter(d => !d.id).map(d => d.section_number)
+    ...[...courseSectionDrafts.entries()].filter(([key,d]) => !d.id).map(([key,d]) => d.section_number)
   ];
   const numbers = new Set(allSectionNumbers);
   for(const d of drafts){
@@ -3370,6 +3378,7 @@ $('saveCourseBtn').onclick=async()=>{
     courseSectionDrafts.clear();
     await refreshAdminSections();
     if(selectedBefore&&adminSections.some(x=>x.id===selectedBefore))activeSectionId=selectedBefore;
+    else activeSectionId=adminSections[adminSections.length-1]?.id||null;
     await loadAdminCourseLibrary();
     renderAdmin();
     alert('Course information, sections, questions and answers saved.');
