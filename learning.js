@@ -3232,10 +3232,8 @@ async function loadAdminCourseLibrary() {
   const ids=state.adminCourseLibrary.map(c=>c.id);
   if(ids.length){
     const {data:sectionRows,error:sectionError}=await supabaseClient
-      .from('learning_course_sections')
-      .select('id,course_id,section_number,title,summary')
-      .in('course_id',ids).order('section_number',{ascending:true});
-    if(sectionError)throw sectionError;
+      .rpc('admin_read_learning_sections');
+    if(sectionError)throw new Error('Cannot read saved sections: '+sectionError.message+'. Install 04_ADMIN_SECTION_READ.sql.');
     for(const course of state.adminCourseLibrary){
       course.sections=(sectionRows||[]).filter(s=>s.course_id===course.id);
     }
@@ -3313,11 +3311,9 @@ $("backToCoursesBtn").onclick=async()=>{await loadAdminCourseLibrary();renderAdm
 let adminSections=[], activeSectionId=null;
 async function fetchCourseSections(courseId){
   if(!courseId)return [];
-  const {data,error}=await supabaseClient.from("learning_course_sections")
-    .select("id,course_id,section_number,title,summary")
-    .eq("course_id",courseId).order("section_number",{ascending:true});
-  if(error)throw error;
-  return data||[];
+  const {data,error}=await supabaseClient.rpc('admin_read_learning_sections');
+  if(error)throw new Error('Cannot read saved sections: '+error.message+'. Install 04_ADMIN_SECTION_READ.sql.');
+  return (data||[]).filter(s=>s.course_id===courseId);
 }
 async function refreshAdminSections(){
   adminSections=await fetchCourseSections(state.course?.id);
@@ -3464,9 +3460,13 @@ $('saveCourseBtn').onclick=async()=>{
     state.adminSelectedCourseId=courseId;
     await loadAdminCourse(courseId);
     await loadAdminCourseLibrary();
+    const verified=(state.adminCourseLibrary||[]).find(c=>c.id===courseId);
+    if(!verified || (verified.sections||[]).length!==sections.length){
+      throw new Error('Save returned an ID, but section verification did not match. Do not save again.');
+    }
     renderAdmin();
     showAdminView('adminCourse');
-    alert('Course, sections, questions and answers saved successfully.');
+    alert('Course and '+verified.sections.length+' sections saved and verified.');
   }catch(e){
     console.error('Atomic course save failed',e);
     alert('Course was not saved: '+(e.message||'Unknown error')+'\nYour unsaved edits are still on this page.');
