@@ -2602,6 +2602,7 @@ function renderAdmin() {
     renderApplications();
     renderCourseApplications();
     renderStudents();
+    if(!$('adminCourse').classList.contains('hidden') && activeSectionId) snapshotSelectedSection();
     renderBuilder();
     renderAdminCourseLibrary();
     renderAdminCerts();
@@ -3244,7 +3245,7 @@ window.repeatLibraryCourse=async id=>{
 $("newCourseBtn").onclick=()=>{
   state.adminSelectedCourseId=null;
   state.course={id:null,title:"",subtitle:"",description:"",section:1,summary:"",published:false,assessmentOpen:false,questions:[]};
-  state.courseClosed=false;adminSections=[];activeSectionId=null;courseSectionDrafts.clear();renderAdmin();showAdminView("adminCourse");
+  state.courseClosed=false;adminSections=[];activeSectionId=null;courseSectionDrafts.clear();ensureInitialSection();renderAdmin();showAdminView("adminCourse");
 };
 $("backToCoursesBtn").onclick=async()=>{await loadAdminCourseLibrary();renderAdminCourseLibrary();showAdminView("adminCourses");};
 // Section records are stored independently; the course-level assessment remains unchanged.
@@ -3269,6 +3270,13 @@ function readQuestionDraftFromInputs(){
 // Keep unsaved edits for every section until the single Save Course action.
 let courseSectionDrafts = new Map();
 function sectionDraftKey(id){return id || '__new__';}
+function ensureInitialSection(){
+  if(adminSections.length || courseSectionDrafts.size)return;
+  const key='__draft_'+crypto.randomUUID();
+  courseSectionDrafts.set(key,{id:null,title:'',summary:'',section_number:1,questions:[]});
+  activeSectionId=key;
+}
+
 function snapshotSelectedSection(){
   if(!$('courseSectionTitleInput') || !activeSectionId)return;
   readQuestionDraftFromInputs();
@@ -3322,6 +3330,7 @@ function renderBuilder(){
   $('courseTitleInput').value=state.course.title;
   $('courseSubtitleInput').value=state.course.subtitle;
   $('courseDescriptionInput').value=state.course.description;
+  if(!adminSections.length && !courseSectionDrafts.size)ensureInitialSection();
   showSelectedSection();
 }
 function renderQuestionBuilder(){$("questionBuilder").innerHTML=adminQuestionDraft.map((q,qi)=>`<div class="question-builder-item"><label>Question ${qi+1}</label><textarea data-q="${qi}" rows="2">${esc(q.text)}</textarea>${q.answers.map((a,ai)=>`<div class="answer-grid"><input data-a="${qi}:${ai}" value="${esc(a.text)}"><label class="correct-toggle"><input type="checkbox" data-c="${qi}:${ai}" ${a.correct?"checked":""}> Correct</label></div>`).join("")}<button class="remove-q" onclick="removeQuestion(${qi})">Remove question</button></div>`).join("")}
@@ -3334,6 +3343,7 @@ $('saveCourseBtn').onclick=async()=>{
   const subtitle=$('courseSubtitleInput').value.trim();
   const description=$('courseDescriptionInput').value.trim();
   if(!title){alert('Enter a course title.');return;}
+  if(!adminSections.length && !courseSectionDrafts.size)ensureInitialSection();
   const sections=adminSections.map(saved=>{
     const draft=courseSectionDrafts.get(saved.id);
     return draft||{
