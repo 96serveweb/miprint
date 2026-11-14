@@ -1299,5 +1299,5 @@ body:has(.learning-hero)::before{display:none}
 .registration-steps{padding-left:24px;display:grid;gap:12px;color:#43535b;line-height:1.6;font-size:.9rem}
 .registration-success-card .registration-note,.registration-success-card .registration-office{background:#f3f8f7;padding:14px 16px;border-radius:12px;margin:16px 0 0;color:#34444c;line-height:1.65;font-size:.88rem}
 
-/* Multiple sections in Course Builder */
-#courseSectionSelect{width:100%;padding:13px;border:1px solid #dbe3e6;border-radius:13px;background:#fff}#addSectionBtn{border:0;border-radius:999px;padding:10px 16px;font-weight:800}#saveSectionBtn{margin:0}.section-question-heading{margin:10px 0;color:#65757d;font-size:.8rem}
+/* Course library */
+.course-library-list{display:grid;gap:12px;margin-top:20px}.course-library-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px;border:1px solid #e1e8eb;border-radius:16px}.course-library-row strong{font-size:1rem}.course-library-row p{margin:6px 0}.course-library-row small{color:#68777e}.builder-current{display:flex;gap:14px;align-items:center;margin:0 0 18px}.builder-current .secondary-btn{border:1px solid #dbe3e6;background:#fff;padding:10px 16px;border-radius:999px;cursor:pointer}@media(max-width:800px){.course-library-row{display:block}.course-library-row .row-actions{margin-top:14px}}

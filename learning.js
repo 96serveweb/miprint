@@ -1449,36 +1449,11 @@ if (courseId) {
 }
 
 else {
-
-  const result =
-    await supabaseClient
-      .from("learning_courses")
-      .select(`
-        id,
-        title,
-        subtitle,
-        description,
-        section_number,
-        summary,
-        published,
-        closed,
-        assessment_open
-      `)
-      .eq("published", true)
-      .eq("closed", false)
-      .order("created_at", {
-        ascending: false
-      })
-      .limit(1)
-      .maybeSingle();
-
-  course =
-    result.data;
-
-  error =
-    result.error;
-
+  // No course can be loaded until the student selects an enrolled course.
+  course = null;
+  error = null;
 }
+
   if (error) {
 
     console.error(
@@ -1491,6 +1466,13 @@ else {
     );
   }
 
+  if (courseId && course && course.id !== courseId) {
+    throw new Error("The selected course could not be verified.");
+  }
+  if (courseId && course && !(state.enrollments || []).some(e =>
+      e.course_id === courseId && (e.status === "enrolled" || e.status === "completed"))) {
+    throw new Error("You have not been approved for this course.");
+  }
   if (!course) {
 
     state.course = {
@@ -1521,7 +1503,8 @@ else {
     );
 
 const canWriteAssessment =
-  courseEnrollment?.status === "enrolled";
+  courseEnrollment?.status === "enrolled" &&
+  course.published === true && course.closed !== true;
 
 
   if (
@@ -1664,7 +1647,7 @@ const canWriteAssessment =
 
   state.courseClosed =
     course.closed === true;
-  state.course.sections=await fetchCourseSections(course.id);
+
 
   return state.course;
 }
@@ -1820,12 +1803,9 @@ await loadStudentProgress();
   }
 }
 
-async function loadAdminCourse() {
+async function loadAdminCourse(courseId = null) {
 
-  const {
-    data: courseRows,
-    error
-  } = await supabaseClient
+  let courseQuery = supabaseClient
     .from("learning_courses")
     .select(`
       id,
@@ -1840,10 +1820,10 @@ async function loadAdminCourse() {
       created_at,
       updated_at
     `)
-    .order("created_at", {
-      ascending: false
-    })
+    .order("created_at", { ascending: false })
     .limit(1);
+  if (courseId) courseQuery = courseQuery.eq("id", courseId);
+  const { data: courseRows, error } = await courseQuery;
 
 
   if (error) {
@@ -1875,7 +1855,6 @@ async function loadAdminCourse() {
       id,
       question_text,
       sort_order,
-      section_id,
       learning_answers (
         id,
         answer_text,
@@ -1915,7 +1894,6 @@ async function loadAdminCourse() {
   question => ({
     id: question.id,
 
-    sectionId:question.section_id,
     text:
       question.question_text,
 
@@ -1939,7 +1917,6 @@ async function loadAdminCourse() {
   state.courseClosed =
     data.closed === true;
 
-  await refreshAdminSections();
   return state.course;
 }
 
@@ -1954,7 +1931,8 @@ await loadAdminApplications();
 await loadAdminStudents();
 await loadAdminCertificates();
 await loadAdminCourseApplications();
-await loadAdminCourse();
+await loadAdminCourse(state.adminSelectedCourseId || null);
+await loadAdminCourseLibrary();
 
 renderAdmin();
     showAdminView("adminDashboard");
@@ -2077,13 +2055,10 @@ const completedCourse =
 
 const allowed =
   s.active &&
-  (
-    (
-      state.course.published &&
-      !state.courseClosed
-    ) ||
-    completedCourse
-  );
+  courseSelected &&
+  !!enrollment &&
+  (enrollment.status === "enrolled" || enrollment.status === "completed") &&
+  ((state.course.published && !state.courseClosed) || completedCourse);
 
 $("courseLocked")
   .classList.toggle(
@@ -2097,9 +2072,7 @@ $("courseContent")
     !allowed
   );
   
-  $("summarySections").innerHTML=(state.course.sections?.length
-    ?state.course.sections.map(sec=>`<article class="summary-card"><h4>Section ${sec.section_number}: ${esc(sec.title)}</h4><p>${esc(sec.summary)}</p></article>`).join('')
-    :`<article class="summary-card"><h4>Section ${state.course.section}: ${esc(state.course.title)}</h4><p>${esc(state.course.summary)}</p></article>`);
+  $("summarySections").innerHTML=`<article class="summary-card"><h4>Section ${state.course.section}: ${esc(state.course.title)}</h4><p>${esc(state.course.summary)}</p></article>`;
  renderAssessment(s);renderResults(s);renderCerts(s);renderProfile(s);
  $("studentUpdateFeed").innerHTML=`<div class="update-item"><strong>Application approved</strong><span>Your student account is active.</span></div><div class="update-item"><strong>${state.course.published?"Course published":"Course hidden"}</strong><span>${esc(state.course.title)}</span></div>${best!==null?`<div class="update-item"><strong>Best mark: ${best}%</strong><span>${best>=60?"Pass":"Not yet passed"}</span></div>`:""}`
 }
@@ -2626,6 +2599,7 @@ function renderAdmin() {
     renderCourseApplications();
     renderStudents();
     renderBuilder();
+    renderAdminCourseLibrary();
     renderAdminCerts();
 
 
@@ -3230,68 +3204,46 @@ window.toggleStudent = async id => {
   }
 };
 
-// Section records are stored independently; the course-level assessment remains unchanged.
-let adminSections=[], activeSectionId=null;
-async function fetchCourseSections(courseId){
-  if(!courseId)return [];
-  const {data,error}=await supabaseClient.from("learning_course_sections")
-    .select("id,course_id,section_number,title,summary")
-    .eq("course_id",courseId).order("section_number",{ascending:true});
-  if(error)throw error;
-  return data||[];
+
+async function loadAdminCourseLibrary() {
+  const {data,error}=await supabaseClient.from("learning_courses")
+    .select("id,title,subtitle,description,published,closed,assessment_open,created_at")
+    .order("created_at",{ascending:false});
+  if(error) throw error;
+  state.adminCourseLibrary=data||[];
+  return state.adminCourseLibrary;
 }
-async function refreshAdminSections(){
-  adminSections=await fetchCourseSections(state.course?.id);
-  if(!adminSections.some(s=>s.id===activeSectionId))activeSectionId=adminSections[0]?.id||null;
+function renderAdminCourseLibrary() {
+  const el=$("adminCoursesList");if(!el)return;
+  const courses=state.adminCourseLibrary||[];
+  el.innerHTML=courses.length?courses.map(x=>`<article class="course-library-row">
+    <div><strong>${esc(x.title)}</strong><p>${esc(x.subtitle||x.description||"")}</p><small>${x.published?"Published":"Unpublished"} • ${x.closed?"Closed":"Open"} • ${x.assessment_open?"Assessment open":"Assessment closed"}</small></div>
+    <div class="row-actions"><button class="secondary" onclick="editLibraryCourse('${x.id}')">Edit</button><button class="approve" onclick="setLibraryPublish('${x.id}',${!x.published})">${x.published?"Unpublish":"Publish"}</button><button class="secondary" onclick="repeatLibraryCourse('${x.id}')">Repeat as New Intake</button></div>
+  </article>`).join(""):'<p>No saved courses yet. Click New Course to begin.</p>';
 }
-function readQuestionDraftFromInputs(){
-  $$('[data-q]').forEach(e=>{const q=adminQuestionDraft[Number(e.dataset.q)];if(q)q.text=e.value.trim()});
-  $$('[data-a]').forEach(e=>{const [q,a]=e.dataset.a.split(':').map(Number);if(adminQuestionDraft[q]?.answers[a])adminQuestionDraft[q].answers[a].text=e.value.trim()});
-  $$('[data-c]').forEach(e=>{const [q,a]=e.dataset.c.split(':').map(Number);if(adminQuestionDraft[q]?.answers[a])adminQuestionDraft[q].answers[a].correct=e.checked});
-}
-function showSelectedSection(){
-  const selected=adminSections.find(s=>s.id===activeSectionId);
-  $('courseSectionSelect').innerHTML=adminSections.map(s=>`<option value="${s.id}" ${s.id===activeSectionId?'selected':''}>Section ${s.section_number}: ${esc(s.title)}</option>`).join('');
-  $('courseSectionTitleInput').value=selected?.title||'';
-  $('courseSectionInput').value=selected?.section_number||1;
-  $('courseSummaryInput').value=selected?.summary||'';
-  adminQuestionDraft=JSON.parse(JSON.stringify((state.course.questions||[]).filter(q=>q.sectionId===activeSectionId)));
-  renderQuestionBuilder();
-}
-$('courseSectionSelect').onchange=e=>{activeSectionId=e.target.value;showSelectedSection()};
-$('addSectionBtn').onclick=()=>{
-  if(!state.course?.id){alert('Save course information first.');return}
-  activeSectionId=null;
-  $('courseSectionSelect').value='';
-  $('courseSectionTitleInput').value='';
-  $('courseSectionInput').value=Math.max(0,...adminSections.map(s=>s.section_number))+1;
-  $('courseSummaryInput').value='';
-  adminQuestionDraft=[];renderQuestionBuilder();
-  alert('Enter a section title and summary, then click Save Section.');
+window.editLibraryCourse=async id=>{
+  try{state.adminSelectedCourseId=id;await loadAdminCourse(id);renderAdmin();showAdminView("adminCourse");}
+  catch(e){alert(e.message||"Unable to load this course.");}
 };
-$('saveSectionBtn').onclick=async()=>{
-  if(!state.course?.id){alert('Save course information first.');return}
-  const title=$('courseSectionTitleInput').value.trim();
-  const summary=$('courseSummaryInput').value.trim();
-  const section_number=Number($('courseSectionInput').value);
-  if(!title||!Number.isInteger(section_number)||section_number<1){alert('Enter a section title and valid section number.');return}
-  const btn=$('saveSectionBtn');btn.disabled=true;
-  try{
-    const payload={course_id:state.course.id,title,summary,section_number};
-    const query=activeSectionId
-      ?supabaseClient.from('learning_course_sections').update(payload).eq('id',activeSectionId)
-      :supabaseClient.from('learning_course_sections').insert(payload);
-    const {data,error}=await query.select('id').single();if(error)throw error;
-    activeSectionId=data.id;
-    await refreshAdminSections();showSelectedSection();alert('Section saved. You can now add its questions.');
-  }catch(e){console.error(e);alert(e.message||'Unable to save section')}finally{btn.disabled=false}
+window.setLibraryPublish=async(id,published)=>{
+  try{const {error}=await supabaseClient.from("learning_courses").update({published,updated_at:new Date().toISOString()}).eq("id",id);if(error)throw error;
+    await loadAdminCourseLibrary();if(state.course?.id===id)state.course.published=published;renderAdmin();}
+  catch(e){alert(e.message||"Unable to update publication.");}
 };
-function renderBuilder(){
-  $('courseTitleInput').value=state.course.title;
-  $('courseSubtitleInput').value=state.course.subtitle;
-  $('courseDescriptionInput').value=state.course.description;
-  showSelectedSection();
-}
+window.repeatLibraryCourse=async id=>{
+  if(!confirm("Create a separate new intake with copied sections, questions and answers? Previous students will NOT be enrolled in the new intake."))return;
+  try{const {data,error}=await supabaseClient.rpc("admin_repeat_learning_course",{p_source_course_id:id});if(error)throw error;
+    const newId=typeof data==="string"?data:data?.course_id;if(!newId)throw Error("No new course ID returned.");
+    await loadAdminCourseLibrary();await editLibraryCourse(newId);alert("New intake created as an unpublished course. Edit its title if needed, then publish it.");}
+  catch(e){alert(e.message||"Unable to create repeat intake.");}
+};
+$("newCourseBtn").onclick=()=>{
+  state.adminSelectedCourseId=null;
+  state.course={id:null,title:"",subtitle:"",description:"",section:1,summary:"",published:false,assessmentOpen:false,questions:[]};
+  state.courseClosed=false;renderAdmin();showAdminView("adminCourse");
+};
+$("backToCoursesBtn").onclick=async()=>{await loadAdminCourseLibrary();renderAdminCourseLibrary();showAdminView("adminCourses");};
+function renderBuilder(){if($("editingCourseName")) $("editingCourseName").textContent=state.course?.title || "New course";["courseTitleInput","courseSubtitleInput","courseDescriptionInput","courseSectionInput","courseSummaryInput"].forEach(()=>{});$("courseTitleInput").value=state.course.title;$("courseSubtitleInput").value=state.course.subtitle;$("courseDescriptionInput").value=state.course.description;$("courseSectionInput").value=state.course.section;$("courseSummaryInput").value=state.course.summary;adminQuestionDraft=JSON.parse(JSON.stringify(state.course.questions||[]));renderQuestionBuilder()}
 function renderQuestionBuilder(){$("questionBuilder").innerHTML=adminQuestionDraft.map((q,qi)=>`<div class="question-builder-item"><label>Question ${qi+1}</label><textarea data-q="${qi}" rows="2">${esc(q.text)}</textarea>${q.answers.map((a,ai)=>`<div class="answer-grid"><input data-a="${qi}:${ai}" value="${esc(a.text)}"><label class="correct-toggle"><input type="checkbox" data-c="${qi}:${ai}" ${a.correct?"checked":""}> Correct</label></div>`).join("")}<button class="remove-q" onclick="removeQuestion(${qi})">Remove question</button></div>`).join("")}
 $("addQuestionBtn").onclick=()=>{adminQuestionDraft.push({id:crypto.randomUUID(),text:"New question",answers:[{text:"Option A",correct:true},{text:"Option B",correct:false},{text:"Option C",correct:false},{text:"Option D",correct:false}]});renderQuestionBuilder()};
 window.removeQuestion=i=>{adminQuestionDraft.splice(i,1);renderQuestionBuilder()};
@@ -3325,7 +3277,7 @@ $("saveCourseInfoBtn").onclick = async () => {
     // Never send an obsolete localStorage test ID to a UUID column.
     const validUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     const existingId = validUuid.test(state.course?.id || "") ? state.course.id : null;
-    const payload = { title, subtitle, description, updated_at: new Date().toISOString() };
+    const payload = { title, subtitle, description, section_number: sectionNumber, summary, updated_at: new Date().toISOString() };
     const query = existingId
       ? supabaseClient.from("learning_courses").update(payload).eq("id", existingId)
       : supabaseClient.from("learning_courses").insert(payload);
@@ -3336,6 +3288,8 @@ $("saveCourseInfoBtn").onclick = async () => {
     }
 
     state.course.id = data.id;
+    state.adminSelectedCourseId = data.id;
+    await loadAdminCourseLibrary();
     state.course.title =
       data.title;
 
@@ -3351,7 +3305,6 @@ $("saveCourseInfoBtn").onclick = async () => {
     state.course.summary =
       data.summary || "";
 
-    await refreshAdminSections();
     renderAdmin();
 
     alert(
@@ -3382,7 +3335,6 @@ $("saveQuestionsBtn").onclick = async () => {
     alert("No Supabase course was loaded.");
     return;
   }
-  if(!activeSectionId){alert("Save or select a section before saving questions.");return;}
 
   $$("[data-q]").forEach(element => {
     const questionIndex =
@@ -3479,7 +3431,7 @@ $("saveQuestionsBtn").onclick = async () => {
   try {
 
     const oldQuestions =
-      (state.course.questions || []).filter(q=>q.sectionId===activeSectionId);
+      state.course.questions || [];
 
     const draftQuestionIds =
       adminQuestionDraft.map(
@@ -3550,7 +3502,6 @@ $("saveQuestionsBtn").onclick = async () => {
 
           course_id:
             state.course.id,
-          section_id:activeSectionId,
 
           question_text:
             question.text,
@@ -3643,10 +3594,12 @@ $("saveQuestionsBtn").onclick = async () => {
       }
     }
 
-    state.course.questions = [
-      ...(state.course.questions||[]).filter(q=>q.sectionId!==activeSectionId),
-      ...JSON.parse(JSON.stringify(adminQuestionDraft)).map(q=>({...q,sectionId:activeSectionId}))
-    ];
+    state.course.questions =
+      JSON.parse(
+        JSON.stringify(
+          adminQuestionDraft
+        )
+      );
 
     alert(
       "Questions saved successfully."
