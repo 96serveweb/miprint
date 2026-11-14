@@ -3328,7 +3328,12 @@ $('saveCourseBtn').onclick=async()=>{
   const drafts=[...courseSectionDrafts.values()];
   if(!drafts.length&&!adminSections.length){alert('Add at least one section before saving.');return;}
   // Validate all modified sections BEFORE making any database changes.
-  const numbers=new Set(adminSections.map(s=>courseSectionDrafts.get(s.id)?.section_number??s.section_number));
+  // Include persisted sections AND every new/edited section in the same validation.
+  const allSectionNumbers = [
+    ...adminSections.map(s => courseSectionDrafts.get(s.id)?.section_number ?? s.section_number),
+    ...drafts.filter(d => !d.id).map(d => d.section_number)
+  ];
+  const numbers = new Set(allSectionNumbers);
   for(const d of drafts){
     if(!d.title||!Number.isInteger(d.section_number)||d.section_number<1){alert('Every edited section needs a title and valid number.');return;}
     if(!d.questions.length){alert(`Add questions to section ${d.section_number}.`);return;}
@@ -3338,7 +3343,7 @@ $('saveCourseBtn').onclick=async()=>{
       }
     }
   }
-  if(numbers.size!==adminSections.length+(courseSectionDrafts.has('__new__')?1:0)){
+  if(numbers.size!==allSectionNumbers.length){
     alert('Section numbers must be unique.');return;
   }
   const btn=$('saveCourseBtn'),original=btn.textContent;
@@ -3380,6 +3385,7 @@ async function saveSectionQuestions(skipInputRead = false) {
   }
   if(!activeSectionId)throw new Error("Save or select a section before saving questions.");
 
+  if (!skipInputRead) {
   $$("[data-q]").forEach(element => {
     const questionIndex =
       Number(element.dataset.q);
@@ -3409,6 +3415,8 @@ async function saveSectionQuestions(skipInputRead = false) {
       .answers[answerIndex]
       .correct = element.checked;
   });
+
+  }
 
   if (!adminQuestionDraft.length) {
     throw new Error("Add at least one question before saving.");
