@@ -1146,14 +1146,19 @@ function renderAvailableCourses() {
     return;
   }
 
-  const courses =
-    state.availableCourses || [];
+  const enrollments = state.enrollments || [];
+  const applications = state.courseApplications || [];
 
-  const enrollments =
-    state.enrollments || [];
-
-    const applications =
-  state.courseApplications || [];
+  // Enrolled/completed courses belong in My Courses, not Available Courses.
+  // Compare course IDs as strings to avoid inconsistent value types.
+  const enrolledCourseIds = new Set(
+    enrollments
+      .filter(item => item.status === "enrolled" || item.status === "completed")
+      .map(item => String(item.course_id))
+  );
+  const courses = (state.availableCourses || []).filter(
+    course => !enrolledCourseIds.has(String(course.id))
+  );
 
   if (!courses.length) {
     container.innerHTML = `
@@ -1163,8 +1168,7 @@ function renderAvailableCourses() {
         <h3>No courses available</h3>
 
         <p>
-          There are currently no published courses
-          available for enrolment.
+          You have no other courses available to apply for right now.
         </p>
       </div>
     `;
