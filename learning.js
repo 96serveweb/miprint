@@ -952,9 +952,13 @@ async function applyForCourse(courseId) {
       "Your course application has been submitted for approval."
     );
 
-    await loadStudentCourseApplications();
+    await Promise.all([
+      loadStudentCourseApplications(),
+      loadStudentEnrollments()
+    ]);
 
     renderAvailableCourses();
+    renderMyCourses();
 
     return data;
 
@@ -977,43 +981,23 @@ window.applyForCourse =
   applyForCourse;
 
 async function loadAvailableCourses() {
-  const {
-    data,
-    error
-  } = await supabaseClient
-    .from("learning_courses")
-    .select(`
-      id,
-      title,
-      subtitle,
-      description,
-      section_number,
-      summary,
-      published,
-      closed,
-      assessment_open,
-      created_at
-    `)
-    .eq("published", true)
-    .eq("closed", false)
-    .order("created_at", {
-      ascending: false
-    });
+  // Use the existing public, published-course RPC instead of a direct
+  // table SELECT, which can be blocked by learning_courses RLS.
+  const { data, error } = await supabaseClient.rpc(
+    "get_public_learning_courses"
+  );
 
   if (error) {
-    console.error(
-      "Unable to load available courses:",
-      error
-    );
-
-    throw new Error(
-      "Unable to load available courses."
-    );
+    console.error("Unable to load available courses:", error);
+    throw new Error("Unable to load available courses: " + error.message);
   }
 
-  state.availableCourses =
-    data || [];
-
+  state.availableCourses = (data || []).map(course => ({
+    id: course.id,
+    title: course.title,
+    subtitle: course.subtitle || "",
+    description: course.description || ""
+  }));
   return state.availableCourses;
 }
 
