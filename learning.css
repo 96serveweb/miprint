@@ -1326,3 +1326,9 @@ body:has(.learning-hero)::before{display:none}
 .course-library-details summary{cursor:pointer;font-weight:700;color:#175b79}
 .course-library-section{margin-top:12px;padding:12px;background:#f7fafb;border-radius:10px}
 .course-library-section p{margin-top:8px;line-height:1.65}
+
+/* Keep each section's summary and questions together. */
+.lesson-assessment-section{margin:0 0 26px;padding:0 0 20px;border-bottom:1px solid #e1e8eb}
+.lesson-assessment-section .summary-card{background:#f7fafb;border:1px solid #e1e8eb;margin-bottom:14px}
+.section-questions{padding:0 12px}
+.section-questions-title{font:800 1.05rem Manrope,sans-serif;margin:18px 0 8px}

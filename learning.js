@@ -2097,9 +2097,12 @@ $("courseContent")
     !allowed
   );
   
-  $("summarySections").innerHTML = (state.course.sections || []).length
-    ? state.course.sections.map(section => `<article class="summary-card"><h4>Section ${section.number}: ${esc(section.title)}</h4><p>${esc(section.summary || "No lesson details have been added to this section yet.")}</p></article>`).join("")
-    : `<article class="summary-card"><h4>Lesson details unavailable</h4><p>No saved sections were found for this course. Ask your administrator to check the saved lesson sections.</p></article>`;
+  // When assessments are open, render each summary beside its own questions.
+  // When locked, keep the lesson summaries readable independently.
+  $("summarySections").innerHTML = state.course.assessmentOpen ? "" :
+    (state.course.sections || []).length
+      ? state.course.sections.map(section => `<article class="summary-card"><h4>Section ${section.number}: ${esc(section.title)}</h4><p>${esc(section.summary || "No lesson details have been added to this section yet.")}</p></article>`).join("")
+      : `<article class="summary-card"><h4>Lesson details unavailable</h4><p>No saved sections were found for this course. Ask your administrator to check the saved lesson sections.</p></article>`;
  renderAssessment(s);renderResults(s);renderCerts(s);renderProfile(s);
  $("studentUpdateFeed").innerHTML=`<div class="update-item"><strong>Application approved</strong><span>Your student account is active.</span></div><div class="update-item"><strong>${state.course.published?"Course published":"Course hidden"}</strong><span>${esc(state.course.title)}</span></div>${best!==null?`<div class="update-item"><strong>Best mark: ${best}%</strong><span>${best>=60?"Pass":"Not yet passed"}</span></div>`:""}`
 }
@@ -2153,42 +2156,39 @@ const disabled =
   attempts.length >= 2;
 
 
-  $("assessmentForm").innerHTML =
-    state.course.questions
-      .map(
-        (q, qi) => `
-          <div class="question-card">
+  const questions = state.course.questions || [];
+  const sections = state.course.sections || [];
+  const renderQuestion = (q, qi) => `
+    <div class="question-card">
+      <h4>${qi + 1}. ${esc(q.text)}</h4>
+      ${q.answers.map(a => `
+        <label class="option">
+          <input type="radio" name="${esc(q.id)}" value="${esc(a.id)}" ${disabled ? "disabled" : ""}>
+          <span>${esc(a.text)}</span>
+        </label>
+      `).join("")}
+    </div>`;
 
-            <h4>
-              ${qi + 1}. ${esc(q.text)}
-            </h4>
-
-            ${q.answers
-              .map(
-                a => `
-                  <label class="option">
-
-                    <input
-                      type="radio"
-                      name="${q.id}"
-                      value="${a.id}"
-                      ${disabled ? "disabled" : ""}
-                    >
-
-                    <span>
-                      ${esc(a.text)}
-                    </span>
-
-                  </label>
-                `
-              )
-              .join("")}
-
-          </div>
-        `
-      )
-      .join("");
-
+  // Match by the saved section UUID, not by question position.
+  // Keep questions with missing section links visible instead of losing them.
+  const knownSectionIds = new Set(sections.map(section => String(section.id)));
+  const sectionMarkup = sections.map(section => {
+    const matching = questions.filter(q => String(q.sectionId || "") === String(section.id));
+    return `<section class="lesson-assessment-section">
+      <article class="summary-card">
+        <h4>Section ${section.number}: ${esc(section.title)}</h4>
+        <p>${esc(section.summary || "No lesson details have been added to this section yet.")}</p>
+      </article>
+      <div class="section-questions">
+        <h4 class="section-questions-title">Section ${section.number} Questions</h4>
+        ${matching.length ? matching.map(q => renderQuestion(q, questions.indexOf(q))).join("") : "<p>No questions have been added to this section.</p>"}
+      </div>
+    </section>`;
+  }).join("");
+  const unlinked = questions.filter(q => !q.sectionId || !knownSectionIds.has(String(q.sectionId)));
+  $("assessmentForm").innerHTML = sections.length
+    ? sectionMarkup + (unlinked.length ? `<section class="lesson-assessment-section"><h4>Questions without a saved section</h4>${unlinked.map(q => renderQuestion(q, questions.indexOf(q))).join("")}</section>` : "")
+    : `<article class="summary-card"><h4>Lesson details unavailable</h4><p>No saved sections were found for this course.</p></article>${questions.map(renderQuestion).join("")}`;
 
   $("submitAssessmentBtn").disabled =
     disabled;
