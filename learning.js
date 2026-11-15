@@ -33,7 +33,7 @@ The Recycle Bin temporarily stores deleted files so they can sometimes be restor
   {id:"q5",text:"Which statements about the Recycle Bin are correct?",answers:[{text:"It can temporarily hold deleted files",correct:true},{text:"Some deleted files can be restored",correct:true},{text:"It is used to browse the internet",correct:false},{text:"It can be emptied to permanently remove contents",correct:true}]}
  ]
 };
-function initialState(){return{admin:{email:"admin@miprint.local",password:"Admin2026!"},course:starterCourse,applications:[],students:[],courseClosed:false,lastAnnualCleanupYear:null,certificateSequence:{}}}
+function initialState(){return{admin:{},course:starterCourse,applications:[],students:[],courseClosed:false,lastAnnualCleanupYear:null,certificateSequence:{}}}
 function annualCleanup(){
  const now=new Date(); const year=now.getFullYear();
  const last=state?.lastAnnualCleanupYear;
@@ -1600,6 +1600,22 @@ const canWriteAssessment =
     }
 
 
+    // Resolve section membership through an authenticated, read-only RPC.
+    // The existing assessment-options RPC does not supply section_id.
+    const { data: sectionLinks, error: sectionLinksError } = await supabaseClient.rpc(
+      "get_my_learning_assessment_section_links", { p_course_id: course.id }
+    );
+    if (sectionLinksError) throw new Error(
+      "Unable to verify assessment section assignments: " + sectionLinksError.message
+    );
+    const links = new Map((sectionLinks || []).map(link => [String(link.question_id), link.section_id]));
+    for (const question of questionMap.values()) {
+      if (!links.has(String(question.id))) {
+        throw new Error("Assessment questions could not be matched to their saved sections. Contact the administrator.");
+      }
+      question.sectionId = links.get(String(question.id));
+    }
+
     studentQuestions =
       Array.from(
         questionMap.values()
@@ -1612,6 +1628,7 @@ const canWriteAssessment =
         .map(
           question => ({
             id: question.id,
+            sectionId: question.sectionId,
 
             text:
               question.text,
@@ -2169,8 +2186,8 @@ const disabled =
       `).join("")}
     </div>`;
 
-  // Match by the saved section UUID, not by question position.
-  // Keep questions with missing section links visible instead of losing them.
+  // Match by saved section UUID, not question position.
+  // A missing link is a configuration error, not a question to silently relocate.
   const knownSectionIds = new Set(sections.map(section => String(section.id)));
   const sectionMarkup = sections.map(section => {
     const matching = questions.filter(q => String(q.sectionId || "") === String(section.id));
@@ -2186,12 +2203,14 @@ const disabled =
     </section>`;
   }).join("");
   const unlinked = questions.filter(q => !q.sectionId || !knownSectionIds.has(String(q.sectionId)));
-  $("assessmentForm").innerHTML = sections.length
-    ? sectionMarkup + (unlinked.length ? `<section class="lesson-assessment-section"><h4>Questions without a saved section</h4>${unlinked.map(q => renderQuestion(q, questions.indexOf(q))).join("")}</section>` : "")
-    : `<article class="summary-card"><h4>Lesson details unavailable</h4><p>No saved sections were found for this course.</p></article>${questions.map(renderQuestion).join("")}`;
+  const invalidStructure = !sections.length || !questions.length || unlinked.length > 0 ||
+    sections.some(section => !questions.some(q => String(q.sectionId) === String(section.id)));
+  $("assessmentForm").innerHTML = invalidStructure
+    ? `<article class="locked-card"><h3>Assessment configuration needs attention</h3><p>The course sections and assessment questions could not be matched safely. Please contact your administrator. No answers have been changed.</p></article>`
+    : sectionMarkup;
 
   $("submitAssessmentBtn").disabled =
-    disabled;
+    disabled || invalidStructure;
 
 $("submitAssessmentBtn").textContent =
   alreadyPassed
@@ -3432,6 +3451,14 @@ $('saveCourseBtn').onclick=async()=>{
     };
   }).concat([...courseSectionDrafts.values()].filter(d=>!d.id));
   if(!sections.length){alert('Add at least one section before saving.');return;}
+  // Existing questions must have a valid saved section. Never save a partial load.
+  const savedIds=new Set(adminSections.map(section=>String(section.id)));
+  const unassigned=(state.course.questions||[]).filter(q=>!q.sectionId||!savedIds.has(String(q.sectionId)));
+  if(unassigned.length){alert('Save blocked: '+unassigned.length+' saved question(s) have no matching section. Reload and contact support.');return;}
+  const expectedIds=new Set((state.course.questions||[]).map(q=>String(q.id)));
+  const includedIds=new Set(sections.flatMap(section=>section.questions||[]).map(q=>String(q.id)));
+  const missing=[...expectedIds].filter(id=>!includedIds.has(id));
+  if(missing.length && !confirm('You removed '+missing.length+' existing question(s). This may delete their answers permanently if no student attempts exist. Continue?'))return;
   const numbers=new Set();
   for(const section of sections){
     if(!section.title||!Number.isInteger(section.section_number)||section.section_number<1){
